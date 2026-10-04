@@ -1,2 +1,111 @@
-# clef-airy
+# Clef Airy Decisions: The Decision Conductor
 
+**A native desktop workbench for Ollama System One & Jev Decision APIs.**
+
+![Clef Airy Decisions, with a decision request on the left and the structured response on the right.](docs/run.jpg)
+
+Clef Airy Decisions is a desktop app for [System One](https://docs.ollama.com/api/systemone) decision API requests and viewing structured responses. It is a [Laravel](https://laravel.com) application packaged with [NativePHP for Desktop](https://nativephp.com/docs/desktop/getting-started/introduction).
+
+Save the API URL, pick a model, and optionally store basic-auth credentials. On the Run page, describe a situation and ask yes/no, choice, or score questions. You can edit the request as a form or as JSON, then read the answer in plain language or as JSON.
+
+The default API URL is `http://localhost:11434`. Leave the username and password blank when that server is a local [Ollama](https://ollama.com) install. Models are read from `GET /api/tags`. Requests go to `/v1/systemone`.
+
+It works out of the box with these local Ollama models:
+
+- `nimble`
+- `tev1`
+- `clef`
+- `clef-flash`
+
+## Requirements
+
+- PHP 8.3 or newer
+- Composer
+- Node.js
+- SQLite
+
+## Setup
+
+```bash
+composer run setup
+```
+
+That installs PHP and JavaScript dependencies, copies `.env.example` to `.env` when needed, generates an application key, runs migrations, and builds the frontend.
+
+## Run
+
+In the browser:
+
+```bash
+composer run dev
+```
+
+As a desktop app, with Vite alongside NativePHP:
+
+```bash
+composer native:dev
+```
+
+## Tests
+
+```bash
+composer test
+```
+
+## macOS builds
+
+Quit Clef Airy Decisions before rebuilding. The build replaces the app bundle in `nativephp/electron/dist`; a running copy can lose files its PHP server is using.
+
+For an Apple Silicon build:
+
+```bash
+php artisan native:build mac arm64 --no-interaction
+```
+
+For Intel Macs, replace `arm64` with `x64`.
+
+Increment the app version in `config/nativephp.php`, or set `NATIVEPHP_APP_VERSION` in your local `.env`. NativePHP checks this version string on boot to run database migrations on installed copies.
+
+Production builds remove `APP_ENV` and `APP_DEBUG` from the bundled environment. The app then runs in production with debug pages off.
+
+The app stores its Laravel session key in an owner-only file in its application-data folder. Saved API passwords use OS-backed encryption (Keychain on macOS), independently of that file. Normal startup and viewing configuration do not read Keychain-saved passwords; saving or sending a password may request Keychain access. Older locally encrypted passwords are migrated to OS-backed storage when readable.
+
+### Signed releases
+
+For distribution, configure a Developer ID Application certificate and the `NATIVEPHP_APPLE_ID`, `NATIVEPHP_APPLE_ID_PASS` (app-specific password), and `NATIVEPHP_APPLE_TEAM_ID` variables in your local, ignored `.env`. See the [NativePHP build guide](https://nativephp.com/docs/desktop/2/publishing/building) for setup details.
+
+```bash
+NATIVEPHP_RELEASE=true php artisan native:build mac arm64 --no-interaction
+```
+
+Release mode requires signing and notarization credentials and stops the build if notarization fails. Artifacts are written to `nativephp/electron/dist`. Keep the bundle identifier stable between releases.
+
+### Opening a local build on macOS
+
+Local builds without a signing identity use ad-hoc signing and are not notarized. If Gatekeeper blocks a build you created or trust, remove its quarantine attribute:
+
+```bash
+xattr -dr com.apple.quarantine 'nativephp/electron/dist/mac-arm64/Clef Airy Decisions.app'
+```
+
+If you moved the app to `/Applications`, run:
+
+```bash
+xattr -dr com.apple.quarantine '/Applications/Clef Airy Decisions.app'
+```
+
+## Upgrading NativePHP
+
+This repo publishes `nativephp/electron` so the app can keep its signing rules, local encryption key, and macOS privacy strings. After `composer update` replaces `nativephp/desktop`, put the new shell in place and reapply those changes:
+
+```bash
+php artisan electron:republish
+```
+
+The command copies the installed Electron project, applies `nativephp/electron-customizations.patch`, restores the package name and plugin build scripts, and copies `public/icon.png`, `public/icon.icns`, and `public/icon.ico` into `nativephp/electron/build`. Pass `--install` when the upgrade changes Electron's npm dependencies. Update the patch when you change those Electron files.
+
+Windows builds use `public/icon.ico`.
+
+## License
+
+Clef Airy Decisions is open-source software licensed under the [MIT license](https://opensource.org/licenses/MIT).
