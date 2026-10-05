@@ -23,9 +23,22 @@ class ElectronRepublishTest extends TestCase
             $this->assertSame($published, $staged);
 
             foreach ($published as $relative) {
+                $publishedContents = file_get_contents($customizations->publishedPath().'/'.$relative);
+                $stagedContents = file_get_contents($staging.'/'.$relative);
+
+                if ($relative === 'package.json') {
+                    $publishedPackage = json_decode($publishedContents, true, flags: JSON_THROW_ON_ERROR);
+                    $stagedPackage = json_decode($stagedContents, true, flags: JSON_THROW_ON_ERROR);
+
+                    $this->assertSame(config('nativephp.version'), $stagedPackage['version']);
+
+                    $publishedPackage['version'] = $stagedPackage['version'];
+                    $publishedContents = json_encode($publishedPackage, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR).PHP_EOL;
+                }
+
                 $this->assertSame(
-                    file_get_contents($customizations->publishedPath().'/'.$relative),
-                    file_get_contents($staging.'/'.$relative),
+                    $publishedContents,
+                    $stagedContents,
                     $relative,
                 );
             }
