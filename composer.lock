@@ -6613,16 +6613,16 @@
         },
         {
             "name": "laravel/agent-detector",
-            "version": "v2.0.2",
+            "version": "v2.0.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/laravel/agent-detector.git",
-                "reference": "90694b9256099591cf9e55d08c18ba7a00bf099f"
+                "reference": "a190dd6b0fbc097ee909fbd59d35039bf82b4b4d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/laravel/agent-detector/zipball/90694b9256099591cf9e55d08c18ba7a00bf099f",
-                "reference": "90694b9256099591cf9e55d08c18ba7a00bf099f",
+                "url": "https://api.github.com/repos/laravel/agent-detector/zipball/a190dd6b0fbc097ee909fbd59d35039bf82b4b4d",
+                "reference": "a190dd6b0fbc097ee909fbd59d35039bf82b4b4d",
                 "shasum": ""
             },
             "require": {
@@ -6671,7 +6671,7 @@
                 "issues": "https://github.com/laravel/agent-detector/issues",
                 "source": "https://github.com/laravel/agent-detector"
             },
-            "time": "2026-04-29T18:32:34+00:00"
+            "time": "2026-09-12T16:17:12+00:00"
         },
         {
             "name": "laravel/boost",
