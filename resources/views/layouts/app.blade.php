@@ -49,13 +49,13 @@
                         href="{{ route('run.create') }}"
                         @if (request()->routeIs('run.create')) aria-current="page" @endif
                         @class([
-                            'flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium',
-                            'bg-ink text-white' => request()->routeIs('run.create'),
-                            'text-ink/75 hover:bg-ink/6' => ! request()->routeIs('run.create'),
+                            'flex items-center gap-2.5 rounded-lg border px-2.5 py-2 text-[13px] font-semibold transition-colors',
+                            'border-accent bg-accent text-white hover:bg-accent/90' => request()->routeIs('run.create'),
+                            'border-accent/25 bg-accent/10 text-accent hover:bg-accent/15' => ! request()->routeIs('run.create'),
                         ])
                     >
                         <x-lucide-clef-treble class="size-4 shrink-0" aria-hidden="true" />
-                        Run
+                        Compose Request
                     </a>
                     <a
                         data-example

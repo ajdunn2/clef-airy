@@ -13,7 +13,7 @@ class SystemOneTest extends TestCase
         $response
             ->assertOk()
             ->assertSee('Configuration')
-            ->assertSee('Run')
+            ->assertSee('Compose Request')
             ->assertSee('API URL')
             ->assertSee('Model')
             ->assertSee('Enter credentials only if your API requires basic authentication.')

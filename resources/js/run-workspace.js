@@ -1,3 +1,5 @@
+import { withSelectedModel } from './run-form-json.js';
+
 export default () => ({
     sending: false,
     error: '',
@@ -56,6 +58,8 @@ export default () => ({
         this.sending = true;
         this.error = '';
         this.feedback = '';
+        this.hasResponse = false;
+        this.$refs.response.replaceChildren();
 
         try {
             const response = await fetch(form.action, {
@@ -127,13 +131,7 @@ export default () => ({
         const model = document.getElementById('model')?.value;
 
         if (model) {
-            try {
-                const body = JSON.parse(source);
-
-                if (body !== null && typeof body === 'object' && ! Array.isArray(body)) {
-                    source = JSON.stringify({ ...body, model }, null, 2);
-                }
-            } catch {}
+            source = withSelectedModel(source, model);
         }
 
         if (! await this.copyText(source)) {

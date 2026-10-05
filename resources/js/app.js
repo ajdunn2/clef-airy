@@ -1,6 +1,11 @@
 import Alpine from 'alpinejs';
 import runWorkspace from './run-workspace';
-import { formatJson, shouldKeepExistingJson, syncFormToJson } from './run-form-json';
+import { formatJson, formBodyError, formFieldValue, parseFormBody, shouldKeepExistingJson, syncFormToJson } from './run-form-json';
+
+window.parseRunJson = parseFormBody;
+window.runFieldValue = formFieldValue;
+window.runFormBodyError = formBodyError;
+window.serializeRunForm = (form) => syncFormToJson(new FormData(form), '', false);
 
 Alpine.data('runWorkspace', runWorkspace);
 Alpine.start();

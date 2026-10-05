@@ -22,7 +22,7 @@ class SystemOnePayload
             $type = (string) ($question['type'] ?? '');
             $instructions = trim((string) ($question['instructions'] ?? ''));
 
-            $this->assertName($name, 'Use a letter in each question name. Names may also include numbers and underscores.');
+            $this->assertName($name, 'Enter a name for each question.');
 
             if (array_key_exists($name, $built)) {
                 throw new InvalidArgumentException('Question names must be unique.');
@@ -38,7 +38,7 @@ class SystemOnePayload
 
             $built[$name] = [
                 'type' => $type,
-                'instructions' => $instructions,
+                'instructions' => $this->contentValue($instructions),
             ];
 
             $criteria = $this->criteria($type, $question);
@@ -52,16 +52,17 @@ class SystemOnePayload
             throw new InvalidArgumentException('Add a question.');
         }
 
-        $json = json_encode([
-            'state' => $this->stateValue($state),
-            'questions' => $built,
-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $json = json_encode((object) $built, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         if ($json === false) {
             throw new InvalidArgumentException('The questions could not be turned into JSON.');
         }
 
-        return $json;
+        $stateJson = json_validate($state) && in_array(substr(ltrim($state), 0, 1), ['{', '['], true)
+            ? $state
+            : json_encode($state, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        return '{"state":'.$stateJson.',"questions":'.$json.'}';
     }
 
     public function pretty(string $body): string
@@ -160,22 +161,22 @@ class SystemOnePayload
         return true;
     }
 
-    private function stateValue(string $state): mixed
+    private function contentValue(string $content): mixed
     {
-        if (! json_validate($state)) {
-            return $state;
+        if (! json_validate($content)) {
+            return $content;
         }
 
-        $decoded = json_decode($state, true);
+        $decoded = json_decode($content);
 
-        return is_array($decoded) ? $decoded : $state;
+        return is_object($decoded) || is_array($decoded) || $decoded === null ? $decoded : $content;
     }
 
     /**
      * @param  array<string, mixed>  $question
-     * @return array<string, string|null>|list<string>|null
+     * @return array<string, mixed>|list<mixed>|\stdClass|null
      */
-    private function criteria(string $type, array $question): ?array
+    private function criteria(string $type, array $question): array|\stdClass|null
     {
         if ($type === 'noul') {
             $true = trim((string) ($question['true'] ?? ''));
@@ -185,7 +186,17 @@ class SystemOnePayload
                 return null;
             }
 
-            return ['true' => $true, 'false' => $false];
+            $criteria = [];
+
+            if ($true !== '') {
+                $criteria['true'] = $this->contentValue($true);
+            }
+
+            if ($false !== '') {
+                $criteria['false'] = $this->contentValue($false);
+            }
+
+            return $criteria;
         }
 
         if ($type === 'choice') {
@@ -202,10 +213,14 @@ class SystemOnePayload
                     continue;
                 }
 
-                $this->assertName($name, 'Use a letter in each option name. Names may also include numbers and underscores.');
+                $this->assertName($name, 'Enter a name for each option.');
+
+                if (array_key_exists($name, $criteria)) {
+                    throw new InvalidArgumentException('Option names must be unique.');
+                }
 
                 $description = trim((string) ($option['description'] ?? ''));
-                $criteria[$name] = $description === '' ? null : $description;
+                $criteria[$name] = $description === '' ? null : $this->contentValue($description);
             }
 
             if ($criteria === []) {
@@ -218,9 +233,13 @@ class SystemOnePayload
                         throw new InvalidArgumentException('Each choice option needs a name.');
                     }
 
-                    $this->assertName($name, 'Use a letter in each option name. Names may also include numbers and underscores.');
+                    $this->assertName($name, 'Enter a name for each option.');
 
-                    $criteria[$name] = $description === '' ? null : $description;
+                    if (array_key_exists($name, $criteria)) {
+                        throw new InvalidArgumentException('Option names must be unique.');
+                    }
+
+                    $criteria[$name] = $description === '' ? null : $this->contentValue($description);
                 }
             }
 
@@ -228,7 +247,7 @@ class SystemOnePayload
                 throw new InvalidArgumentException('Choice questions need at least two options.');
             }
 
-            return $criteria;
+            return (object) $criteria;
         }
 
         $levels = [];
@@ -237,7 +256,7 @@ class SystemOnePayload
             $level = trim((string) $level);
 
             if ($level !== '') {
-                $levels[] = $level;
+                $levels[] = $this->contentValue($level);
             }
         }
 
@@ -254,7 +273,7 @@ class SystemOnePayload
 
     private function assertName(string $name, string $message): void
     {
-        if (preg_match('/^[A-Za-z0-9_-]+$/', $name) !== 1 || preg_match('/[A-Za-z]/', $name) !== 1) {
+        if (trim($name) === '') {
             throw new InvalidArgumentException($message);
         }
     }

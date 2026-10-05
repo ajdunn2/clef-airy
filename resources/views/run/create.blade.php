@@ -8,7 +8,7 @@
 
 @section('actions')
     @if ($configured)
-        <button type="submit" form="run-form" data-send :disabled="sending" x-text="sending ? 'Sending…' : 'Send'" class="min-w-24 rounded-lg bg-accent px-3.5 py-1.5 text-[13px] font-medium text-white hover:bg-accent/90 disabled:cursor-progress disabled:opacity-70">Send</button>
+        <button type="submit" form="run-form" data-send :disabled="sending" class="inline-flex min-w-24 items-center justify-center gap-1 rounded-lg bg-accent px-3.5 py-1.5 text-[13px] font-medium text-white hover:bg-accent/90 disabled:cursor-progress disabled:opacity-70"><x-lucide-send class="size-4 shrink-0" aria-hidden="true" /><span x-text="sending ? 'Sending…' : 'Send'">Send</span></button>
     @endif
 @endsection
 
@@ -89,7 +89,7 @@
                     <div data-panel="form" class="grid gap-3">
                         <div class="grid gap-1.5">
                             <label for="state" class="text-[13px] font-medium">State</label>
-                            <textarea id="state" name="state" rows="3" autofocus class="rounded-lg border border-line bg-white px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">{{ old('state', $prefill['state']) }}</textarea>
+                            <textarea id="state" name="state" rows="3" autofocus class="field-sizing-content min-h-20 w-full rounded-lg border border-line bg-white px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">{{ old('state', $prefill['state']) }}</textarea>
                             @error('state')
                                 <p class="text-[13px] text-red-700">{{ $message }}</p>
                             @enderror
@@ -151,7 +151,7 @@
 
                 <div class="flex flex-wrap items-center justify-end gap-3">
                     <span class="text-[13px] text-muted">Ctrl/⌘⏎ to send</span>
-                    <button type="submit" data-send x-text="sending ? 'Sending…' : 'Send'" class="rounded-lg bg-accent px-3.5 py-1.5 text-[13px] font-medium text-white hover:bg-accent/90">Send</button>
+                    <button type="submit" data-send class="inline-flex items-center gap-1 rounded-lg bg-accent px-3.5 py-1.5 text-[13px] font-medium text-white hover:bg-accent/90"><x-lucide-send class="size-4 shrink-0" aria-hidden="true" /><span x-text="sending ? 'Sending…' : 'Send'">Send</span></button>
                 </div>
             </div>
             </fieldset>
@@ -184,6 +184,21 @@
 
     @if ($configured)
         <dialog
+            data-remove-question-dialog
+            aria-labelledby="remove-question-title"
+            class="m-auto w-[min(24rem,calc(100vw-2rem))] rounded-xl border border-line bg-white p-4 text-ink shadow-lg shadow-black/10 backdrop:bg-ink/30"
+        >
+            <div class="grid gap-3">
+                <h2 id="remove-question-title" class="text-sm font-semibold">Remove question</h2>
+                <p class="text-[13px]">Remove <span data-remove-question-name class="font-medium" style="overflow-wrap:anywhere"></span>?</p>
+                <div class="flex items-center justify-end gap-2">
+                    <button type="button" data-cancel-remove-question autofocus class="rounded-lg border border-line bg-white px-3 py-1.5 text-[13px] font-medium">Cancel</button>
+                    <button type="button" data-confirm-remove-question class="rounded-lg bg-accent px-3.5 py-1.5 text-[13px] font-medium text-white hover:bg-accent/90">Remove</button>
+                </div>
+            </div>
+        </dialog>
+
+        <dialog
             x-ref="bookmarkDialog"
             x-on:click="if ($event.target === $el) $el.close()"
             aria-labelledby="bookmark-title"
@@ -214,7 +229,7 @@
                         x-ref="bookmarkSubmit"
                         form="run-form"
                         data-save
-                        formaction="{{ $savedCall ? route('calls.update', $savedCall) : route('calls.store') }}"
+                        formaction="{{ route('calls.store') }}"
                         :disabled="sending"
                         class="rounded-lg bg-accent px-3.5 py-1.5 text-[13px] font-medium text-white hover:bg-accent/90"
                     >Bookmark</button>
@@ -225,6 +240,33 @@
 
     <script>
         const runForm = document.querySelector('[data-run]');
+        const removeQuestionDialog = document.querySelector('[data-remove-question-dialog]');
+        let pendingQuestion = null;
+
+        removeQuestionDialog?.addEventListener('close', () => {
+            pendingQuestion = null;
+        });
+
+        removeQuestionDialog?.addEventListener('click', (event) => {
+            if (event.target === removeQuestionDialog || event.target.closest('[data-cancel-remove-question]')) {
+                removeQuestionDialog.close();
+
+                return;
+            }
+
+            if (! event.target.closest('[data-confirm-remove-question]')) {
+                return;
+            }
+
+            const list = document.querySelector('[data-questions]');
+
+            if (runForm?.dataset.sending !== 'true' && pendingQuestion?.parentElement === list && list.querySelectorAll('[data-question]').length > 1) {
+                pendingQuestion.remove();
+                renumberQuestions(list);
+            }
+
+            removeQuestionDialog.close();
+        });
 
         document.querySelector('[data-add-question]')?.addEventListener('click', () => {
             if (runForm?.dataset.sending === 'true') {
@@ -302,8 +344,10 @@
                 return;
             }
 
-            button.closest('[data-question]').remove();
-            renumberQuestions(list);
+            pendingQuestion = button.closest('[data-question]');
+            removeQuestionDialog.querySelector('[data-remove-question-name]').textContent = pendingQuestion.querySelector('input[name$="[name]"]').value.trim()
+                || `Question ${pendingQuestion.querySelector('[data-question-number]').textContent}`;
+            removeQuestionDialog.showModal();
         });
 
         function insertRow(question, listSelector, templateSelector, pattern, token) {
@@ -354,8 +398,6 @@
                 const json = formJson(runForm);
 
                 if (json === null) {
-                    status.textContent = 'Add a named question to fill this from the form.';
-
                     return;
                 }
 
@@ -384,13 +426,21 @@
             let body;
 
             try {
-                body = JSON.parse(source);
+                body = window.parseRunJson(source);
             } catch {
                 return 'Fix the JSON syntax before switching to the form.';
             }
 
-            if (body === null || typeof body !== 'object' || Array.isArray(body) || typeof body.questions !== 'object' || Array.isArray(body.questions)) {
-                return 'Add a questions object before switching to the form.';
+            const bodyError = window.runFormBodyError(body);
+
+            if (bodyError) {
+                return bodyError;
+            }
+
+            const model = form.querySelector('#model');
+
+            if (body.model && model && ! [...model.options].some((option) => option.value === body.model)) {
+                return 'Choose this model in Configuration first, or keep using the JSON view.';
             }
 
             const list = form.querySelector('[data-questions]');
@@ -418,12 +468,10 @@
             if (typeof body.state === 'string') {
                 state.value = body.state;
             } else if (body.state !== undefined && body.state !== null) {
-                state.value = JSON.stringify(body.state, null, 2);
+                state.value = window.runFieldValue(body.state);
             } else {
                 state.value = '';
             }
-
-            const model = form.querySelector('#model');
 
             if (model && body.model && [...model.options].some((option) => option.value === body.model)) {
                 model.value = body.model;
@@ -440,14 +488,14 @@
 
             field('[name]').value = name;
             field('[type]').value = type;
-            field('[instructions]').value = question.instructions ?? '';
+            field('[instructions]').value = Object.hasOwn(question, 'instructions') ? window.runFieldValue(question.instructions) : '';
             row.dataset.type = type;
 
             const criteria = question.criteria ?? {};
 
             if (type === 'noul') {
-                field('[true]').value = criteria.true ?? '';
-                field('[false]').value = criteria.false ?? '';
+                field('[true]').value = Object.hasOwn(criteria, 'true') ? window.runFieldValue(criteria.true) : '';
+                field('[false]').value = Object.hasOwn(criteria, 'false') ? window.runFieldValue(criteria.false) : '';
 
                 return;
             }
@@ -464,7 +512,7 @@
 
                     const optionRow = options.lastElementChild;
                     optionRow.querySelector(`[name="questions[${index}][options][${optionIndex}][name]"]`).value = optionName;
-                    optionRow.querySelector(`[name="questions[${index}][options][${optionIndex}][description]"]`).value = description ?? '';
+                    optionRow.querySelector(`[name="questions[${index}][options][${optionIndex}][description]"]`).value = description === null ? '' : window.runFieldValue(description);
                 });
 
                 return;
@@ -478,72 +526,20 @@
                     'beforeend',
                     document.querySelector('#level-template').innerHTML.replaceAll('__INDEX__', String(index)).replaceAll('__LEVEL__', String(levelIndex)),
                 );
-                levels.lastElementChild.querySelector('input').value = level;
+                levels.lastElementChild.querySelector('input').value = window.runFieldValue(level);
             });
         }
 
         function formJson(form) {
-            const values = {};
+            const result = window.serializeRunForm(form);
 
-            for (const [field, value] of new FormData(form).entries()) {
-                const keys = field.match(/[^\[\]]+/g);
+            if (result.action !== 'replace') {
+                document.querySelector('[data-json-status]').textContent = result.message;
 
-                if (keys === null) {
-                    continue;
-                }
-
-                let node = values;
-
-                for (const key of keys.slice(0, -1)) {
-                    node = node[key] ??= {};
-                }
-
-                node[keys.at(-1)] = value.trim();
-            }
-
-            const questions = {};
-
-            for (const question of Object.values(values.questions ?? {})) {
-                if (question.name) {
-                    questions[question.name] = questionJson(question);
-                }
-            }
-
-            if (Object.keys(questions).length === 0) {
                 return null;
             }
 
-            return JSON.stringify({ state: stateValue(values.state ?? ''), questions }, null, 2);
-        }
-
-        function questionJson(question) {
-            const criteria = question.type === 'choice'
-                ? Object.fromEntries(Object.values(question.options ?? {}).filter((option) => option.name).map((option) => [option.name, option.description || null]))
-                : question.type === 'score'
-                    ? Object.values(question.levels ?? {}).filter((level) => level !== '')
-                    : question.true || question.false
-                        ? { true: question.true ?? '', false: question.false ?? '' }
-                        : null;
-
-            const entry = { type: question.type, instructions: question.instructions ?? '' };
-
-            if (criteria !== null && (Array.isArray(criteria) ? criteria.length > 0 : Object.keys(criteria).length > 0)) {
-                entry.criteria = criteria;
-            }
-
-            return entry;
-        }
-
-        function stateValue(state) {
-            try {
-                const parsed = JSON.parse(state);
-
-                if (parsed !== null && typeof parsed === 'object') {
-                    return parsed;
-                }
-            } catch {}
-
-            return state;
+            return result.json;
         }
 
         const questionSlides = new WeakMap();

@@ -10,6 +10,82 @@ use Tests\TestCase;
 
 class SystemOneConfigurationTest extends TestCase
 {
+    public function test_jev_uses_an_encrypted_bearer_key_and_discovers_models_with_it(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://api.typesafe.ai/v1/models' => Http::response(['models' => [['name' => 'jev-latest']]]),
+            'https://api.typesafe.ai/v1/systemone' => Http::response('{}'),
+        ]);
+        $this->put('/configuration', [
+            'api_url' => 'https://api.typesafe.ai',
+            'auth_type' => 'bearer',
+            'password' => 'test-api-key',
+            'model' => 'jev-latest',
+        ])->assertRedirect(route('configuration.edit'));
+        $setting = SystemOneSetting::current();
+        $client = new class extends SystemOneClient
+        {
+            protected function shouldLookupModels(): bool
+            {
+                return true;
+            }
+        };
+
+        $models = $client->models($setting->base_url, $setting->model);
+        $client->send($setting, 'POST', '/v1/systemone', '{"state":"Support needed.","questions":{}}', $setting->model);
+
+        $this->assertSame(['models' => ['jev-latest'], 'fromApi' => true], $models);
+        $this->assertNotSame('test-api-key', $setting->getRawOriginal('password'));
+        $this->get(route('configuration.edit'))->assertOk()->assertDontSee('test-api-key');
+        Http::assertSentCount(2);
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.typesafe.ai/v1/models'
+            && $request->hasHeader('Authorization', 'Bearer test-api-key'));
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.typesafe.ai/v1/systemone'
+            && $request->hasHeader('Authorization', 'Bearer test-api-key')
+            && $request['model'] === 'jev-latest');
+    }
+
+    public function test_no_authentication_does_not_send_saved_credentials(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake();
+        $this->put('/configuration', [
+            'api_url' => 'http://api.example.test',
+            'auth_type' => 'none',
+            'username' => 'ada',
+            'password' => 'secret',
+        ]);
+
+        $this->postJson('/run', ['method' => 'GET', 'path' => '/events'])->assertOk();
+
+        Http::assertSent(fn (Request $request): bool => ! $request->hasHeader('Authorization'));
+    }
+
+    public function test_model_selection_preserves_json_objects_and_large_numbers(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake();
+        $this->put('/configuration', ['api_url' => 'http://api.example.test']);
+
+        $this->postJson('/run', [
+            'method' => 'POST', 'path' => '/v1/systemone', 'model' => 'jev-latest',
+            'body' => '{"model":"old","state":{"id":9007199254740993,"empty":{},"model":"nested, model"},"questions":{"0":{"type":"noul","instructions":"Check coverage."}}}',
+        ])->assertOk();
+
+        Http::assertSent(function (Request $request): bool {
+            $body = $request->body();
+            $decoded = json_decode($body);
+
+            return str_contains($body, '9007199254740993')
+                && $decoded->state->empty instanceof \stdClass
+                && $decoded->state->model === 'nested, model'
+                && $decoded->questions instanceof \stdClass
+                && $decoded->model === 'jev-latest'
+                && substr_count($body, '"model":') === 2;
+        });
+    }
+
     public function test_settings_are_saved_and_the_password_is_not_shown_again(): void
     {
         $response = $this->put('/configuration', [

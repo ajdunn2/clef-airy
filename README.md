@@ -6,7 +6,7 @@
 
 Clef Airy Decisions API Tester is a desktop app for [System One](https://docs.ollama.com/api/systemone) decision API requests and viewing structured responses. It is a [Laravel](https://laravel.com) application packaged with [NativePHP for Desktop](https://nativephp.com/docs/desktop/getting-started/introduction).
 
-Save the API URL, pick a model, and optionally store basic-auth credentials. On the Run page, describe a situation and ask yes/no, choice, or score questions. You can edit the request as a form or as JSON, then read the answer in plain language or as JSON.
+Save the API URL, pick a model, and choose no authentication, Basic credentials, or a Bearer API key. For [Jev](https://docs.typesafe.ai/api), use `https://api.typesafe.ai`, model `jev-latest`, and Bearer authentication with your TypeSafe key in the Password / API key field. In Compose Request, describe a situation and ask yes/no, choice, or score questions. You can edit the request as a form or as JSON, then read the answer in plain language or as JSON. Instructions and criteria fields also accept JSON objects and arrays.
 
 The default API URL is `http://localhost:11434`. Leave the username and password blank when that server is a local [Ollama](https://ollama.com) install. Models are read from `GET /api/tags`. Requests go to `/v1/systemone`.
 

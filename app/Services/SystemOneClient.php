@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\SystemOneSetting;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use InvalidArgumentException;
@@ -16,7 +17,7 @@ class SystemOneClient
     public function models(?string $baseUrl, ?string $selected = null): array
     {
         $installed = $this->installedModels($baseUrl);
-        $names = $installed ?? ['clef-flash', 'clef'];
+        $names = $installed ?? ['clef-flash', 'clef', 'jev-latest', 'jev-preview'];
 
         if (filled($selected) && ! in_array($selected, $names, true)) {
             array_unshift($names, $selected);
@@ -30,7 +31,7 @@ class SystemOneClient
 
     public function send(SystemOneSetting $setting, string $method, string $path, ?string $body, ?string $model = null): SystemOneResponse
     {
-        if ($setting->passwordNeedsReset()) {
+        if ($setting->auth_type !== 'none' && $setting->passwordNeedsReset()) {
             throw new InvalidArgumentException('Re-enter your API password in Configuration before sending a request.');
         }
 
@@ -39,9 +40,7 @@ class SystemOneClient
             ->timeout(120)
             ->acceptJson();
 
-        if (filled($setting->username) || filled($setting->password)) {
-            $pending = $pending->withBasicAuth((string) $setting->username, (string) $setting->password);
-        }
+        $pending = $this->authenticate($pending, $setting);
 
         if (filled($model) && (filled($body) || in_array(strtoupper($method), ['POST', 'PUT', 'PATCH'], true))) {
             $body = $this->withModel($body, $model);
@@ -71,7 +70,10 @@ class SystemOneClient
         }
 
         try {
-            $response = $this->getQuietly($this->endpoint($baseUrl, '/api/tags'));
+            $setting = SystemOneSetting::current();
+            $setting = $setting?->base_url === $baseUrl ? $setting : null;
+            $path = $setting?->auth_type === 'bearer' ? '/v1/models' : '/api/tags';
+            $response = $this->getQuietly($this->endpoint($baseUrl, $path), $setting);
         } catch (InvalidArgumentException) {
             return null;
         }
@@ -109,10 +111,24 @@ class SystemOneClient
         return ! app()->runningUnitTests();
     }
 
-    private function getQuietly(string $url): ?Response
+    private function authenticate(PendingRequest $pending, ?SystemOneSetting $setting): PendingRequest
+    {
+        if ($setting?->auth_type === 'bearer' && filled($setting->password)) {
+            return $pending->withToken($setting->password);
+        }
+
+        if ($setting !== null && $setting->auth_type !== 'none' && $setting->auth_type !== 'bearer'
+            && (filled($setting->username) || filled($setting->password))) {
+            return $pending->withBasicAuth((string) $setting->username, (string) $setting->password);
+        }
+
+        return $pending;
+    }
+
+    private function getQuietly(string $url, ?SystemOneSetting $setting): ?Response
     {
         try {
-            return Http::connectTimeout(2)->timeout(3)->acceptJson()->get($url);
+            return $this->authenticate(Http::connectTimeout(2)->timeout(3)->acceptJson(), $setting)->get($url);
         } catch (ConnectionException) {
             return null;
         }
@@ -128,15 +144,58 @@ class SystemOneClient
             return $body;
         }
 
-        $decoded = json_decode($body, true);
+        $decoded = json_decode($body);
 
-        if (! is_array($decoded) || array_is_list($decoded)) {
+        if (! is_object($decoded)) {
             return $body;
         }
 
-        $decoded['model'] = $model;
+        $content = substr(trim($body), 1, -1);
+        $properties = [];
+        $start = 0;
+        $depth = 0;
+        $quoted = false;
+        $escaped = false;
 
-        return json_encode($decoded, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        for ($index = 0; $index < strlen($content); $index++) {
+            $character = $content[$index];
+
+            if ($quoted) {
+                if ($escaped) {
+                    $escaped = false;
+                } elseif ($character === '\\') {
+                    $escaped = true;
+                } elseif ($character === '"') {
+                    $quoted = false;
+                }
+
+                continue;
+            }
+
+            if ($character === '"') {
+                $quoted = true;
+            } elseif ($character === '{' || $character === '[') {
+                $depth++;
+            } elseif ($character === '}' || $character === ']') {
+                $depth--;
+            } elseif ($character === ',' && $depth === 0) {
+                $properties[] = substr($content, $start, $index - $start);
+                $start = $index + 1;
+            }
+        }
+
+        if (trim($content) !== '') {
+            $properties[] = substr($content, $start);
+        }
+
+        $properties = array_filter($properties, function (string $property): bool {
+            $value = json_decode('{'.$property.'}');
+
+            return ! property_exists($value, 'model');
+        });
+        $properties[] = '"model":'.json_encode($model, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        return '{'.implode(',', $properties).'}';
     }
 
     private function endpoint(string $baseUrl, string $path): string

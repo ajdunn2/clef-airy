@@ -8,6 +8,39 @@ use Tests\TestCase;
 
 class SavedCallTest extends TestCase
 {
+    public function test_bookmarking_an_open_bookmark_creates_a_new_call_without_changing_the_original(): void
+    {
+        $this->put('/configuration', ['api_url' => 'http://api.example.test']);
+        $original = SavedCall::factory()->create([
+            'name' => 'Night desk',
+            'body_mode' => 'form',
+            'state' => 'The night desk is uncovered.',
+        ]);
+        $originalAttributes = $original->fresh()->getAttributes();
+        $page = $this->get(route('calls.show', $original));
+        $page->assertSee('formaction="'.route('calls.store').'"', false);
+        preg_match('/formaction="([^"]+)"/', $page->getContent(), $matches);
+
+        $response = $this->from(route('calls.show', $original))->post($matches[1], [
+            'name' => 'Night desk',
+            'method' => 'POST',
+            'path' => '/v1/systemone',
+            'body_mode' => 'form',
+            'state' => 'The night desk is now covered.',
+            'questions' => [
+                ['name' => 'urgent', 'type' => 'noul', 'instructions' => 'Is it urgent?'],
+            ],
+        ]);
+
+        $copy = SavedCall::query()->whereKeyNot($original->id)->sole();
+        $response->assertRedirect(route('calls.show', $copy));
+        $this->assertDatabaseCount('saved_calls', 2);
+        $this->assertSame($originalAttributes, $original->fresh()->getAttributes());
+        $this->assertSame('Night desk', $copy->name);
+        $this->assertSame('The night desk is now covered.', $copy->state);
+        $this->assertSame('urgent', $copy->questions[0]['name']);
+    }
+
     public function test_saving_a_form_call_adds_it_to_the_menu_and_reopens_it(): void
     {
         $this->put('/configuration', ['api_url' => 'http://api.example.test']);

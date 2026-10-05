@@ -1,7 +1,7 @@
 import { isLosslessNumber, parse, stringify } from 'lossless-json';
 
-const QUESTION_NAME = 'Use a letter in each question name. Names may also include numbers and underscores.';
-const OPTION_NAME = 'Use a letter in each option name. Names may also include numbers and underscores.';
+const QUESTION_NAME = 'Enter a name for each question.';
+const OPTION_NAME = 'Enter a name for each option.';
 const STATE_TOKEN = '__CLEF_AIRY_STATE__';
 
 /**
@@ -217,7 +217,7 @@ function build(formData) {
 
         const payload = Object.create(null);
         payload.type = question.type;
-        payload.instructions = question.instructions;
+        payload.instructions = contentValue(question.instructions);
 
         if (criteria.value !== null) {
             payload.criteria = criteria.value;
@@ -269,8 +269,12 @@ function criteriaFor(question) {
         }
 
         const criteria = Object.create(null);
-        criteria.true = question.true;
-        criteria.false = question.false;
+        if (question.true !== '') {
+            criteria.true = contentValue(question.true);
+        }
+        if (question.false !== '') {
+            criteria.false = contentValue(question.false);
+        }
 
         return { value: criteria };
     }
@@ -300,7 +304,7 @@ function criteriaFor(question) {
             }
 
             names.add(option.name);
-            criteria[option.name] = option.description === '' ? null : option.description;
+            criteria[option.name] = option.description === '' ? null : contentValue(option.description);
             count += 1;
         }
 
@@ -315,7 +319,7 @@ function criteriaFor(question) {
 
     for (const level of question.levels.values()) {
         if (level !== '') {
-            levels.push(level);
+            levels.push(contentValue(level));
         }
     }
 
@@ -327,7 +331,7 @@ function criteriaFor(question) {
 }
 
 function invalidName(name, message) {
-    if (! /^[A-Za-z0-9_-]+$/.test(name) || ! /[A-Za-z]/.test(name)) {
+    if (name.trim() === '') {
         return message;
     }
 
@@ -339,7 +343,77 @@ function documentJson(state, questions) {
     shell.state = STATE_TOKEN;
     shell.questions = questions;
 
-    return JSON.stringify(shell, null, 2).replace(JSON.stringify(STATE_TOKEN), encodeState(state));
+    return stringify(shell, null, 2).replace(JSON.stringify(STATE_TOKEN), encodeState(state));
+}
+
+export function contentValue(source) {
+    try {
+        const value = parse(source);
+
+        if (value === null || (typeof value === 'object' && ! isLosslessNumber(value))) {
+            return value;
+        }
+    } catch {}
+
+    return source;
+}
+
+export function formFieldValue(value) {
+    return typeof value === 'string' ? value : stringify(value, null, 2);
+}
+
+export function parseFormBody(source) {
+    return parse(source);
+}
+
+export function formBodyError(body) {
+    const object = (value) => value !== null && typeof value === 'object' && ! Array.isArray(value) && ! isLosslessNumber(value);
+    const content = (value) => value === null || typeof value === 'string' || Array.isArray(value) || object(value);
+    const message = 'This JSON contains fields the form cannot preserve. Keep using the JSON view.';
+
+    if (! object(body) || ! object(body.questions)) {
+        return 'Add a questions object before switching to the form.';
+    }
+
+    if (Object.keys(body).some((key) => ! ['state', 'questions', 'model'].includes(key))
+        || (Object.hasOwn(body, 'state') && (body.state === null || ! content(body.state)))) {
+        return message;
+    }
+
+    for (const question of Object.values(body.questions)) {
+        if (! object(question) || ! ['noul', 'choice', 'score'].includes(question.type)
+            || Object.keys(question).some((key) => ! ['type', 'instructions', 'criteria'].includes(key))
+            || ! content(question.instructions)) {
+            return message;
+        }
+
+        if (! Object.hasOwn(question, 'criteria')) {
+            continue;
+        }
+
+        if (question.type === 'score') {
+            if (! Array.isArray(question.criteria) || ! question.criteria.every(content)) {
+                return message;
+            }
+        } else if (! object(question.criteria) || ! Object.values(question.criteria).every(content)
+            || (question.type === 'noul' && Object.keys(question.criteria).some((key) => ! ['true', 'false'].includes(key)))) {
+            return message;
+        }
+    }
+
+    return null;
+}
+
+export function withSelectedModel(source, model) {
+    try {
+        const body = parse(source);
+
+        if (body !== null && typeof body === 'object' && ! Array.isArray(body) && ! isLosslessNumber(body)) {
+            return stringify(Object.assign(Object.create(null), body, { model }), null, 2);
+        }
+    } catch {}
+
+    return source;
 }
 
 function encodeState(state) {

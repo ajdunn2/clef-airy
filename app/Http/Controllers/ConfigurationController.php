@@ -8,6 +8,7 @@ use Closure;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class ConfigurationController extends Controller
 {
@@ -20,6 +21,7 @@ class ConfigurationController extends Controller
         return view('configuration.edit', [
             'apiUrl' => $setting?->base_url,
             'username' => $setting?->username,
+            'authType' => $setting?->auth_type ?? 'basic',
             'hasPassword' => filled($setting?->getRawOriginal('password')),
             'passwordNeedsReset' => $setting !== null
                 && ! str_starts_with((string) $setting->getRawOriginal('password'), 'native:v1:')
@@ -53,6 +55,7 @@ class ConfigurationController extends Controller
                 },
             ],
             'username' => ['nullable', 'string', 'max:255'],
+            'auth_type' => ['sometimes', Rule::in(['basic', 'bearer', 'none'])],
             'password' => ['nullable', 'string', 'max:2000'],
             'remove_password' => ['sometimes', 'boolean'],
             'model' => ['nullable', 'string', 'max:255'],
@@ -64,6 +67,7 @@ class ConfigurationController extends Controller
         $setting ??= new SystemOneSetting;
         $setting->base_url = $validated['api_url'];
         $setting->username = $validated['username'] ?? '';
+        $setting->auth_type = $validated['auth_type'] ?? $setting->auth_type ?? 'basic';
 
         if (filled($validated['password'] ?? null)) {
             $setting->password = $validated['password'];

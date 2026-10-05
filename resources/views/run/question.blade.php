@@ -81,11 +81,11 @@
 
     <div data-criteria="noul" class="grid gap-3 sm:grid-cols-2">
         <div class="grid gap-1.5">
-            <label class="text-[13px] font-medium" for="question-true-{{ $index }}">True when</label>
+            <label class="text-[13px] font-medium" for="question-true-{{ $index }}">True&hellip; when</label>
             <input id="question-true-{{ $index }}" name="questions[{{ $index }}][true]" value="{{ $question['true'] }}" class="{{ $field }}">
         </div>
         <div class="grid gap-1.5">
-            <label class="text-[13px] font-medium" for="question-false-{{ $index }}">False when</label>
+            <label class="text-[13px] font-medium" for="question-false-{{ $index }}">False&hellip; when</label>
             <input id="question-false-{{ $index }}" name="questions[{{ $index }}][false]" value="{{ $question['false'] }}" class="{{ $field }}">
         </div>
     </div>
@@ -111,7 +111,7 @@
     <div data-criteria="score" class="grid gap-2">
         <div class="grid gap-0.5">
             <p class="text-[13px] font-medium">Levels</p>
-            <p class="text-[13px] text-muted">Lowest first.</p>
+            <p class="text-[13px] text-muted">Lowest first. Jev supports up to 10 levels; Ollama supports up to 26.</p>
         </div>
         <div class="grid gap-2" data-levels>
             @foreach ($levels as $levelIndex => $level)

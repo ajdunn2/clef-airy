@@ -8,6 +8,64 @@ use Tests\TestCase;
 
 class RunWorkspaceTest extends TestCase
 {
+    public function test_jev_form_requests_allow_more_than_26_choice_options(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake();
+        $this->put('/configuration', [
+            'api_url' => 'https://api.typesafe.ai', 'auth_type' => 'bearer',
+            'password' => 'test-api-key', 'model' => 'jev-latest',
+        ]);
+        $options = array_map(fn (int $index): array => [
+            'name' => 'team '.$index, 'description' => 'Support team '.$index,
+        ], range(1, 27));
+
+        $this->postJson('/run', [
+            'method' => 'POST', 'path' => '/v1/systemone', 'body_mode' => 'form',
+            'state' => 'Support needed.',
+            'questions' => [[
+                'name' => 'team', 'type' => 'choice', 'instructions' => 'Which team?', 'options' => $options,
+            ]],
+        ])->assertOk();
+
+        Http::assertSent(fn ($request) => count($request['questions']['team']['criteria']) === 27
+            && $request['questions']['team']['criteria']['team 27'] === 'Support team 27');
+    }
+
+    public function test_form_requests_preserve_question_and_option_names_with_spaces(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['http://api.example.test/*' => Http::response('{}')]);
+        $this->put('/configuration', ['api_url' => 'http://api.example.test']);
+
+        $this->postJson('/run', [
+            'method' => 'POST',
+            'path' => '/v1/systemone',
+            'body_mode' => 'form',
+            'state' => 'The night desk needs support coverage.',
+            'questions' => [
+                ['name' => 'urgent', 'type' => 'noul', 'instructions' => 'Is this urgent?'],
+                [
+                    'name' => 'support team',
+                    'type' => 'choice',
+                    'instructions' => 'Which team should handle this?',
+                    'options' => [
+                        ['name' => 'billing', 'description' => 'Billing support'],
+                        ['name' => 'technical', 'description' => 'Technical support'],
+                        ['name' => 'sales', 'description' => 'Sales support'],
+                        ['name' => 'customer support', 'description' => 'customer support'],
+                    ],
+                ],
+            ],
+        ])->assertOk();
+
+        Http::assertSent(fn ($request) => $request['state'] === 'The night desk needs support coverage.'
+            && $request['questions']['urgent']['instructions'] === 'Is this urgent?'
+            && $request['questions']['support team']['criteria'] === [
+                'billing' => 'Billing support', 'technical' => 'Technical support', 'sales' => 'Sales support', 'customer support' => 'customer support',
+            ]);
+    }
+
     public function test_run_starts_blank_with_its_sidebar_link_selected(): void
     {
         $this->put('/configuration', ['api_url' => 'http://api.example.test']);
@@ -19,6 +77,7 @@ class RunWorkspaceTest extends TestCase
         $this->assertMatchesRegularExpression('/href="[^"]*\/run"\s+aria-current="page"/', $response->getContent());
         $this->assertMatchesRegularExpression('/Example #3\s*<\/a>\s*<button[^>]*>\s*Hide examples\s*<\/button>/', $response->getContent());
         $this->assertMatchesRegularExpression('/data-add-question[^>]*>\s*<svg\b[\s\S]*?M22 17a2 2 0 0 1-2 2H6\.828[\s\S]*?<\/svg>\s*Add question<\/button>/', $response->getContent());
+        $this->assertSame(2, preg_match_all('/data-send[^>]*>\s*<svg\b[\s\S]*?M14\.536 21\.686[\s\S]*?<\/svg>\s*<span[^>]*>Send<\/span>/', $response->getContent()));
     }
 
     public function test_run_example_loads_the_example_and_selects_only_its_sidebar_link(): void

@@ -18,7 +18,8 @@ class NativeAppServiceProvider implements ProvidesPhpIni
             ->title('Clef Airy Decisions API Tester')
             ->route(static::initialRoute())
             ->width(1040)
-            ->height(720)
+            // 813px reaches the bottom of the default Run request card, plus the 32px title bar.
+            ->height(845)
             ->minWidth(720)
             ->minHeight(520)
             ->rememberState()

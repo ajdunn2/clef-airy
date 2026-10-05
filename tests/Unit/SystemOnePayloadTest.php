@@ -8,6 +8,49 @@ use PHPUnit\Framework\TestCase;
 
 class SystemOnePayloadTest extends TestCase
 {
+    public function test_structured_content_and_partial_noul_criteria_keep_their_shapes(): void
+    {
+        $json = (new SystemOnePayload)->fromForm('{"id":9007199254740993,"empty":{}}', [[
+            'name' => 'coverage?', 'type' => 'noul',
+            'instructions' => '{"question":"Is coverage needed?","signals":["night"]}',
+            'true' => '{"meaning":"Coverage needed"}',
+            'false' => '',
+        ], [
+            'name' => 'team', 'type' => 'choice', 'instructions' => 'Which team?',
+            'options' => [
+                ['name' => 'customer support', 'description' => '{"covers":["tickets"]}'],
+                ['name' => 'billing', 'description' => ''],
+            ],
+        ], [
+            'name' => 'priority', 'type' => 'score', 'instructions' => 'How urgent?',
+            'levels' => ['{"label":"Low"}', '["High","Immediate"]'],
+        ]]);
+
+        $body = json_decode($json);
+        $this->assertStringContainsString('9007199254740993', $json);
+        $this->assertInstanceOf(\stdClass::class, $body->state->empty);
+        $this->assertSame('Is coverage needed?', $body->questions->{'coverage?'}->instructions->question);
+        $this->assertSame('Coverage needed', $body->questions->{'coverage?'}->criteria->true->meaning);
+        $this->assertFalse(property_exists($body->questions->{'coverage?' }->criteria, 'false'));
+        $this->assertSame(['tickets'], $body->questions->team->criteria->{'customer support'}->covers);
+        $this->assertNull($body->questions->team->criteria->billing);
+        $this->assertSame('Low', $body->questions->priority->criteria[0]->label);
+        $this->assertSame(['High', 'Immediate'], $body->questions->priority->criteria[1]);
+    }
+
+    public function test_duplicate_choice_names_are_rejected_instead_of_overwritten(): void
+    {
+        $this->expectExceptionMessage('Option names must be unique.');
+
+        (new SystemOnePayload)->fromForm('Support needed.', [[
+            'name' => 'team', 'type' => 'choice', 'instructions' => 'Which team?',
+            'options' => [
+                ['name' => 'billing', 'description' => 'First'],
+                ['name' => 'billing', 'description' => 'Second'],
+            ],
+        ]]);
+    }
+
     public function test_it_builds_noul_choice_and_score_questions(): void
     {
         $json = (new SystemOnePayload)->fromForm('Checkout is down.', [
@@ -88,33 +131,27 @@ class SystemOnePayloadTest extends TestCase
         $this->assertSame(['No impact', 'Minor'], $body['questions']['severity']['criteria']);
     }
 
-    public function test_digit_only_names_are_rejected(): void
+    public function test_numeric_and_unicode_names_are_preserved_as_object_keys(): void
     {
-        $payload = new SystemOnePayload;
-
-        try {
-            $payload->fromForm('Checkout is down.', [[
-                'name' => '0',
-                'type' => 'noul',
-                'instructions' => 'Is this urgent?',
-            ]]);
-            $this->fail('A digit-only question name was accepted.');
-        } catch (InvalidArgumentException $exception) {
-            $this->assertSame('Use a letter in each question name. Names may also include numbers and underscores.', $exception->getMessage());
-        }
-
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Use a letter in each option name. Names may also include numbers and underscores.');
-
-        $payload->fromForm('Checkout is down.', [[
-            'name' => 'team',
+        $body = (new SystemOnePayload)->fromForm('Support needed.', [[
+            'name' => '0',
             'type' => 'choice',
             'instructions' => 'Which team?',
             'options' => [
-                ['name' => '0', 'description' => 'First'],
-                ['name' => 'billing', 'description' => 'Payments'],
+                ['name' => '0', 'description' => 'Billing'],
+                ['name' => '1', 'description' => 'Technical'],
             ],
+        ], [
+            'name' => 'équipe?',
+            'type' => 'noul',
+            'instructions' => 'Is help needed?',
         ]]);
+
+        $decoded = json_decode($body);
+        $this->assertInstanceOf(\stdClass::class, $decoded->questions);
+        $this->assertInstanceOf(\stdClass::class, $decoded->questions->{'0'}->criteria);
+        $this->assertSame('Billing', $decoded->questions->{'0'}->criteria->{'0'});
+        $this->assertSame('Is help needed?', $decoded->questions->{'équipe?'}->instructions);
     }
 
     public function test_a_choice_question_needs_two_options(): void

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { formatJson, shouldKeepExistingJson, syncFormToJson } from '../../resources/js/run-form-json.js';
+import { formatJson, formBodyError, formFieldValue, parseFormBody, shouldKeepExistingJson, syncFormToJson, withSelectedModel } from '../../resources/js/run-form-json.js';
 
 function form(entries) {
     const data = new FormData();
@@ -44,6 +44,83 @@ function decisionForm() {
         ['questions[3][instructions]', ''],
     ]);
 }
+
+test('question and option names with spaces are preserved in JSON', () => {
+    const result = syncFormToJson(form([
+        ['state', 'The night desk needs support coverage.'],
+        ['questions[0][name]', 'urgent'],
+        ['questions[0][type]', 'noul'],
+        ['questions[0][instructions]', 'Is this urgent?'],
+        ['questions[1][name]', 'support team'],
+        ['questions[1][type]', 'choice'],
+        ['questions[1][instructions]', 'Which team should handle this?'],
+        ['questions[1][options][0][name]', 'billing'],
+        ['questions[1][options][0][description]', 'Billing support'],
+        ['questions[1][options][1][name]', 'customer support'],
+        ['questions[1][options][1][description]', 'customer support'],
+    ]), '', false);
+
+    assert.equal(result.action, 'replace');
+    assert.deepEqual(JSON.parse(result.json).questions['support team'].criteria, {
+        billing: 'Billing support', 'customer support': 'customer support',
+    });
+});
+
+test('numeric and Unicode names remain JSON object keys', () => {
+    const result = syncFormToJson(form([
+        ['state', 'Support needed.'],
+        ['questions[0][name]', '0'],
+        ['questions[0][type]', 'choice'],
+        ['questions[0][instructions]', 'Which team?'],
+        ['questions[0][options][0][name]', '0'],
+        ['questions[0][options][0][description]', 'Billing'],
+        ['questions[0][options][1][name]', 'équipe?'],
+        ['questions[0][options][1][description]', 'Technical'],
+    ]), '', false);
+
+    assert.equal(result.action, 'replace');
+    assert.equal(Array.isArray(JSON.parse(result.json).questions), false);
+    assert.deepEqual(JSON.parse(result.json).questions['0'].criteria, { '0': 'Billing', 'équipe?': 'Technical' });
+});
+
+test('copying a request with a selected model preserves large numbers and empty objects', () => {
+    const result = withSelectedModel('{"model":"old","state":{"id":9007199254740993,"empty":{}}}', 'jev-latest');
+
+    assert.match(result, /9007199254740993/);
+    assert.equal(JSON.parse(result).model, 'jev-latest');
+    assert.deepEqual(JSON.parse(result).state.empty, {});
+});
+
+test('switching to the form accepts structured content and protects unsupported JSON fields', () => {
+    const body = { state: {}, questions: { coverage: { type: 'noul', instructions: { question: 'Is help needed?' }, criteria: { true: ['Yes'] } } } };
+
+    assert.equal(formBodyError(body), null);
+    assert.match(formBodyError({ ...body, keep_alive: '5m' }), /cannot preserve/);
+    assert.match(formBodyError({ ...body, questions: null }), /questions object/);
+    assert.match(formBodyError({ ...body, questions: { coverage: { type: 'unknown', instructions: 'Help?' } } }), /cannot preserve/);
+});
+
+test('structured instructions, criteria, and large numbers survive form round trips', () => {
+    const body = parseFormBody('{"instructions":{"question":"Is help needed?","id":9007199254740993},"yes":{"meaning":"Needs support"},"level":["High","Immediate"]}');
+    const result = syncFormToJson(form([
+        ['state', 'Support needed.'],
+        ['questions[0][name]', 'coverage'],
+        ['questions[0][type]', 'noul'],
+        ['questions[0][instructions]', formFieldValue(body.instructions)],
+        ['questions[0][true]', formFieldValue(body.yes)],
+        ['questions[0][false]', ''],
+        ['questions[1][name]', 'priority'],
+        ['questions[1][type]', 'score'],
+        ['questions[1][instructions]', 'How urgent?'],
+        ['questions[1][levels][0]', '{"label":"Low"}'],
+        ['questions[1][levels][1]', formFieldValue(body.level)],
+    ]), '', false);
+
+    assert.equal(result.action, 'replace');
+    assert.match(result.json, /9007199254740993/);
+    assert.deepEqual(JSON.parse(result.json).questions.coverage.criteria, { true: { meaning: 'Needs support' } });
+    assert.deepEqual(JSON.parse(result.json).questions.priority.criteria, [{ label: 'Low' }, ['High', 'Immediate']]);
+});
 
 test('switching to JSON fills a payload from the form and leaves other criteria out', () => {
     const result = syncFormToJson(decisionForm(), '', false);
@@ -123,7 +200,6 @@ test('yes and no criteria are included when either side is filled', () => {
     assert.equal(result.action, 'replace');
     assert.deepEqual(JSON.parse(result.json).questions.urgent.criteria, {
         true: 'Customers cannot pay',
-        false: '',
     });
 });
 
@@ -290,4 +366,4 @@ test('a large integer that differs from the form is kept', () => {
     assert.equal(shouldKeepExistingJson(data, filled.json.replace('9007199254740993', '9007199254740992'), false), true);
 });
 
-const QUESTION_NAME = 'Use a letter in each question name. Names may also include numbers and underscores.';
+const QUESTION_NAME = 'Enter a name for each question.';

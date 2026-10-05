@@ -256,7 +256,7 @@ class RunController extends Controller
             $rules['questions.*.false'] = ['nullable', 'string', 'max:2000'];
             $rules['questions.*.choice'] = ['nullable', 'string', 'max:20000'];
             $rules['questions.*.score'] = ['nullable', 'string', 'max:20000'];
-            $rules['questions.*.options'] = ['nullable', 'array', 'max:26'];
+            $rules['questions.*.options'] = ['nullable', 'array', 'max:255'];
             $rules['questions.*.options.*.name'] = ['nullable', 'string', 'max:200'];
             $rules['questions.*.options.*.description'] = ['nullable', 'string', 'max:2000'];
             $rules['questions.*.levels'] = ['nullable', 'array', 'max:32'];
