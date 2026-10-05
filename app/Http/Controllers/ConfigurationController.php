@@ -29,7 +29,6 @@ class ConfigurationController extends Controller
                 && $setting->passwordNeedsReset(),
             'model' => $model,
             'models' => $models['models'],
-            'modelsFromApi' => $models['fromApi'],
             'modelError' => $models['error'],
         ]);
     }

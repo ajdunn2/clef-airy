@@ -4,8 +4,6 @@
 
 @section('heading', 'Configuration')
 
-@section('summary', 'Configure your API connection and default model.')
-
 @section('content')
     @if (session('status'))
         <p class="text-[13px] text-muted" role="status">{{ session('status') }}</p>
@@ -47,8 +45,6 @@
             </select>
             @if ($modelError)
                 <p class="whitespace-pre-line text-[13px] text-red-700" role="alert">{{ $modelError }}</p>
-            @else
-                <p class="text-[13px] text-muted">{{ $modelsFromApi ? 'Available from this API.' : 'Suggested models; the API connection has not been verified.' }}</p>
             @endif
             @error('model')
                 <p class="text-[13px] text-red-700">{{ $message }}</p>
@@ -58,7 +54,7 @@
         <div class="grid gap-1.5">
             <label for="auth_type" class="text-[13px] font-medium">Authentication</label>
             <select id="auth_type" name="auth_type" x-model="authType" class="rounded-lg border border-line bg-white px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">
-                @foreach (['none' => 'None (e.g. local Ollama)', 'basic' => 'Basic (username and password)', 'bearer' => 'Bearer API key (e.g. Jev / TypeSafe)'] as $value => $label)
+                @foreach (['none' => 'None (e.g. local Ollama)', 'basic' => 'Basic (e.g. protected API proxy)', 'bearer' => 'Bearer API key (e.g. Jev / TypeSafe)'] as $value => $label)
                     <option value="{{ $value }}" @selected(old('auth_type', $authType) === $value)>{{ $label }}</option>
                 @endforeach
             </select>
@@ -92,8 +88,12 @@
                 @if ($hasPassword) placeholder="********" @endif
                 class="rounded-lg border border-line bg-white px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25"
             >
-            <p class="text-[13px] text-muted">{{ $passwordNeedsReset ? 'Enter your API password to replace the unreadable saved value.' : ($hasPassword ? 'A password is saved. Leave this blank to keep it.' : 'Enter credentials only if your API requires basic authentication.') }}</p>
-            <p x-show="authType === 'bearer'" class="text-[13px] text-muted">For Jev, enter your TypeSafe key here. Use https://api.typesafe.ai with model jev-latest.</p>
+            @if ($passwordNeedsReset)
+                <p class="text-[13px] text-muted">Enter your API password to replace the unreadable saved value.</p>
+            @elseif ($hasPassword)
+                <p class="text-[13px] text-muted">A password is saved. Leave this blank to keep it.</p>
+            @endif
+            <p x-show="authType === 'bearer'" class="text-[13px] text-muted">Note: For Jev, enter your TypeSafe key here. Use <small><code>https://api.typesafe.ai</code></small> with model jev-latest.</p>
             @if ($hasPassword)
                 <label class="flex items-center gap-2 text-[13px]">
                     <input type="checkbox" name="remove_password" value="1" @checked(old('remove_password'))>

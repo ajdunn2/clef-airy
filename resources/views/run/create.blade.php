@@ -4,11 +4,9 @@
 
 @section('heading', $pageTitle)
 
-@section('summary', 'Send one request and read the response.')
-
 @section('actions')
     @if ($configured)
-        <button type="submit" form="run-form" data-send :disabled="sending" class="inline-flex min-w-24 items-center justify-center gap-1 rounded-lg bg-accent px-3.5 py-1.5 text-[13px] font-medium text-white hover:bg-accent/90 disabled:cursor-progress disabled:opacity-70"><x-lucide-send class="size-4 shrink-0" aria-hidden="true" /><span x-text="sending ? 'Sending…' : 'Send'">Send</span></button>
+        <button type="submit" form="run-form" data-send :disabled="sending" class="inline-flex min-w-24 items-center justify-center gap-1 rounded-lg bg-accent px-3.5 py-1.5 text-[13px] font-medium text-white hover:bg-accent/90 disabled:cursor-progress disabled:opacity-70"><x-lucide-send class="size-4 shrink-0" aria-hidden="true" /><span x-text="sending ? 'Sending…' : 'Send'">Send</span><span x-show="! sending" class="font-normal text-white/80">Ctrl/⌘⏎</span></button>
     @endif
 @endsection
 
@@ -36,41 +34,101 @@
                     </select>
                     @if ($modelError)
                         <p class="whitespace-pre-line text-[13px] text-red-700" role="alert">{{ $modelError }}</p>
-                    @else
-                        <p class="text-[13px] text-muted">{{ $modelsFromApi ? 'Available from this API.' : 'Suggested models; the API connection has not been verified.' }}</p>
                     @endif
                     @error('model')
                         <p class="text-[13px] text-red-700">{{ $message }}</p>
                     @enderror
                 </div>
 
-                <div class="grid gap-3 sm:grid-cols-[8rem_minmax(0,1fr)]">
-                    <div class="grid gap-1.5">
-                        <label for="method" class="text-[13px] font-medium">Method</label>
-                        <select id="method" name="method" class="rounded-lg border border-line bg-white px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">
-                            @foreach (['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as $method)
-                                <option value="{{ $method }}" @selected(old('method', $prefill['method']) === $method)>{{ $method }}</option>
-                            @endforeach
-                        </select>
-                        @error('method')
-                            <p class="text-[13px] text-red-700">{{ $message }}</p>
-                        @enderror
+                <div
+                    class="grid gap-3"
+                    x-data="{
+                        editing: {{ $errors->has('method') || $errors->has('path') ? 'true' : 'false' }},
+                        method: @js(old('method', $prefill['method'])),
+                        path: @js(old('path', $prefill['path'])),
+                        methodError: '',
+                        pathError: '',
+                        open(event) {
+                            const detail = event?.detail;
+                            if (detail && (detail.method || detail.path)) {
+                                this.methodError = [].concat(detail.method ?? []).join('\n');
+                                this.pathError = [].concat(detail.path ?? []).join('\n');
+                            }
+                            this.editing = true;
+                            this.focusWhenReady(this.$refs.path);
+                        },
+                        close() {
+                            this.editing = false;
+                            this.focusWhenReady(this.$refs.edit);
+                        },
+                        focusWhenReady(element) {
+                            let remaining = 20;
+                            const attempt = () => {
+                                const ready = element.isConnected
+                                    && ! element.disabled
+                                    && getComputedStyle(element).display !== 'none'
+                                    && element.getClientRects().length > 0;
+                                if (ready) {
+                                    element.focus();
+                                    return;
+                                }
+                                if (remaining-- > 0) {
+                                    requestAnimationFrame(attempt);
+                                }
+                            };
+                            requestAnimationFrame(attempt);
+                        },
+                    }"
+                    x-on:endpoint-invalid.window="open($event)"
+                >
+                    <div x-show="! editing" class="flex min-w-0 items-center gap-2">
+                        <p class="flex min-w-0 flex-1 items-center gap-2 text-[13px]">
+                            <span class="inline-flex shrink-0 items-center rounded-full bg-ink/8 px-2 py-0.5 text-xs font-medium text-ink" x-text="method">{{ old('method', $prefill['method']) }}</span>
+                            <code class="min-w-0 truncate rounded bg-canvas px-1.5 py-0.5 font-mono" :class="path.trim() === '' ? 'text-muted' : ''" :title="path" x-text="path.trim() === '' ? 'Enter a path' : path">{{ old('path', $prefill['path']) !== '' ? old('path', $prefill['path']) : 'Enter a path' }}</code>
+                        </p>
+                        <button type="button" x-ref="edit" x-on:click="open()" aria-label="Edit endpoint" class="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[13px] font-medium text-muted hover:bg-canvas hover:text-ink">
+                            <x-lucide-pencil class="size-3.5 shrink-0" aria-hidden="true" />
+                            Edit
+                        </button>
                     </div>
 
-                    <div class="grid gap-1.5">
-                        <label for="path" class="text-[13px] font-medium">Path</label>
-                        <input
-                            id="path"
-                            name="path"
-                            type="text"
-                            value="{{ old('path', $prefill['path']) }}"
-                            required
-                            class="rounded-lg border border-line bg-white px-3 py-2 font-mono text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25"
-                            placeholder="/v1/systemone"
-                        >
-                        @error('path')
-                            <p class="text-[13px] text-red-700">{{ $message }}</p>
-                        @enderror
+                    <div x-show="editing" x-cloak x-on:keydown.escape="close()" class="grid gap-3">
+                        <div class="grid gap-3 sm:grid-cols-[8rem_minmax(0,1fr)]">
+                            <div class="grid gap-1.5">
+                                <label for="method" class="text-[13px] font-medium">Method</label>
+                                <select id="method" name="method" x-model="method" x-on:change="methodError = ''" class="rounded-lg border border-line bg-white px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">
+                                    @foreach (['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as $method)
+                                        <option value="{{ $method }}" @selected(old('method', $prefill['method']) === $method)>{{ $method }}</option>
+                                    @endforeach
+                                </select>
+                                @error('method')
+                                    <p class="text-[13px] text-red-700">{{ $message }}</p>
+                                @enderror
+                                <p class="whitespace-pre-line text-[13px] text-red-700" x-cloak x-show="methodError" x-text="methodError"></p>
+                            </div>
+
+                            <div class="grid gap-1.5">
+                                <label for="path" class="text-[13px] font-medium">Path</label>
+                                <input
+                                    id="path"
+                                    name="path"
+                                    type="text"
+                                    x-model="path"
+                                    x-ref="path"
+                                    x-on:input="pathError = ''"
+                                    value="{{ old('path', $prefill['path']) }}"
+                                    class="rounded-lg border border-line bg-white px-3 py-2 font-mono text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25"
+                                    placeholder="/v1/systemone"
+                                >
+                                @error('path')
+                                    <p class="text-[13px] text-red-700">{{ $message }}</p>
+                                @enderror
+                                <p class="whitespace-pre-line text-[13px] text-red-700" x-cloak x-show="pathError" x-text="pathError"></p>
+                            </div>
+                        </div>
+                        <div class="flex justify-end">
+                            <button type="button" x-on:click="close()" class="rounded-lg border border-line bg-white px-3 py-1.5 text-[13px] font-medium">Done</button>
+                        </div>
                     </div>
                 </div>
 
@@ -80,14 +138,16 @@
                 <div data-switch class="grid gap-3">
                     <div class="flex flex-wrap items-center gap-3">
                         <span class="text-[13px] font-medium">Request</span>
-                        <button type="button" x-on:click="openBookmark" class="inline-flex items-center gap-1 rounded-lg border border-line bg-white px-3 py-1.5 text-[13px] font-medium"><x-lucide-bookmark class="size-4 shrink-0" aria-hidden="true" />Bookmark</button>
+                        <button type="button" x-on:click="openBookmark" class="inline-flex items-center gap-1.5 rounded-lg border border-accent/30 bg-accent/10 px-3 py-1.5 text-[13px] font-semibold text-accent transition-colors hover:border-accent/50 hover:bg-accent/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2"><x-lucide-bookmark class="size-4 shrink-0" aria-hidden="true" />Bookmark</button>
                         <div class="ml-auto flex rounded-lg bg-canvas p-0.5 text-[13px]">
-                            <label class="cursor-pointer rounded-md px-2.5 py-1 text-muted">
+                            <label class="inline-flex cursor-pointer items-center gap-1 rounded-md px-2.5 py-1 text-muted">
                                 <input type="radio" name="body_mode" value="form" data-pick="form" class="sr-only" @checked(old('body_mode', $prefill['body_mode']) === 'form')>
+                                <x-lucide-form class="size-3.5 shrink-0" aria-hidden="true" />
                                 Form
                             </label>
-                            <label class="cursor-pointer rounded-md px-2.5 py-1 text-muted">
+                            <label class="inline-flex cursor-pointer items-center gap-1 rounded-md px-2.5 py-1 text-muted">
                                 <input type="radio" name="body_mode" value="json" data-pick="json" class="sr-only" @checked(old('body_mode', $prefill['body_mode']) === 'json')>
+                                <x-lucide-braces class="size-3.5 shrink-0" aria-hidden="true" />
                                 JSON
                             </label>
                         </div>
@@ -112,8 +172,9 @@
                             <p class="text-[13px] text-red-700">{{ $message }}</p>
                         @enderror
 
-                        <div class="flex items-center justify-between gap-3">
+                        <div class="flex flex-wrap items-center gap-2">
                             <button type="button" data-add-question class="inline-flex items-center gap-1 rounded-lg border border-line bg-white px-3 py-1.5 text-[13px] font-medium disabled:opacity-40"><x-lucide-message-square-plus class="size-4 shrink-0" aria-hidden="true" />Add question</button>
+                            <button type="button" data-duplicate-question class="inline-flex items-center gap-1 rounded-lg border border-line bg-white px-3 py-1.5 text-[13px] font-medium disabled:opacity-40"><x-lucide-book-copy class="size-4 shrink-0" aria-hidden="true" />Duplicate</button>
                         </div>
                     </div>
 
@@ -127,7 +188,6 @@
                             <button type="button" data-format-json class="rounded-lg border border-line bg-white px-3 py-1.5 text-[13px] font-medium">Format JSON</button>
                             <span data-json-status role="status" class="text-[13px] text-muted"></span>
                         </div>
-                        <p class="text-[13px] text-muted">Switching views fills the other from this one and replaces its edits. The selected model is added when you send.</p>
                         @error('body')
                             <p class="text-[13px] text-red-700">{{ $message }}</p>
                         @enderror
@@ -157,7 +217,6 @@
                 </template>
 
                 <div class="flex flex-wrap items-center justify-end gap-3">
-                    <span class="text-[13px] text-muted">Ctrl/⌘⏎ to send</span>
                     <button type="submit" data-send class="inline-flex items-center gap-1 rounded-lg bg-accent px-3.5 py-1.5 text-[13px] font-medium text-white hover:bg-accent/90"><x-lucide-send class="size-4 shrink-0" aria-hidden="true" /><span x-text="sending ? 'Sending…' : 'Send'">Send</span></button>
                 </div>
             </div>
@@ -174,8 +233,8 @@
         <div class="mb-3 flex min-h-8 items-center justify-between gap-3">
             <p role="status" class="text-[13px] text-muted" x-text="sending ? 'Sending request…' : feedback"></p>
             <div class="flex items-center gap-2">
-                <button type="button" x-on:click="copyRequest" :disabled="sending" x-text="copied === 'request' ? 'Copied' : 'Copy request'" :class="copied === 'request' ? 'border-accent text-accent' : 'border-line'" class="min-w-27 rounded-lg border px-3 py-1.5 text-[13px] font-medium transition-colors duration-300 disabled:opacity-40">Copy request</button>
-                <button type="button" x-on:click="copyResponse" :disabled="!hasResponse" x-text="copied === 'response' ? 'Copied' : 'Copy response'" :class="copied === 'response' ? 'border-accent text-accent' : 'border-line'" class="min-w-30 rounded-lg border px-3 py-1.5 text-[13px] font-medium transition-colors duration-300 disabled:opacity-40">Copy response</button>
+                <button type="button" x-on:click="copyRequest" :disabled="sending" :class="copied === 'request' ? 'border-accent text-accent' : 'border-line'" class="inline-flex min-w-27 items-center justify-center gap-1 rounded-lg border px-3 py-1.5 text-[13px] font-medium transition-colors duration-300 disabled:opacity-40"><x-lucide-copy class="size-4 shrink-0" aria-hidden="true" /><span x-text="copied === 'request' ? 'Copied' : 'Copy request'">Copy request</span></button>
+                <button type="button" x-on:click="copyResponse" :disabled="!hasResponse" :class="copied === 'response' ? 'border-accent text-accent' : 'border-line'" class="inline-flex min-w-30 items-center justify-center gap-1 rounded-lg border px-3 py-1.5 text-[13px] font-medium transition-colors duration-300 disabled:opacity-40"><x-lucide-copy class="size-4 shrink-0" aria-hidden="true" /><span x-text="copied === 'response' ? 'Copied' : 'Copy response'">Copy response</span></button>
             </div>
         </div>
         <p x-cloak x-show="error" x-text="error" role="alert" class="mb-3 whitespace-pre-line text-[13px] text-red-700"></p>
@@ -183,7 +242,7 @@
             @if (is_array($result))
                 @include('run.response', ['result' => $result])
             @else
-                <div class="grid min-h-64 place-items-center rounded-lg bg-canvas px-4 text-center text-[13px] text-muted">Your response will appear here.</div>
+                <div class="min-h-64 rounded-lg bg-canvas"></div>
             @endif
         </div>
     </section>
@@ -292,6 +351,53 @@
 
             list.insertAdjacentHTML('beforeend', template.innerHTML.replaceAll('__INDEX__', String(index)));
             renumberQuestions(list);
+        });
+
+        document.querySelector('[data-duplicate-question]')?.addEventListener('click', () => {
+            if (runForm?.dataset.sending === 'true') {
+                return;
+            }
+
+            const list = document.querySelector('[data-questions]');
+            const rows = [...list.children].filter((row) => row.matches('[data-question]'));
+
+            if (rows.length === 0 || rows.length >= 64) {
+                return;
+            }
+
+            const source = rows.at(-1);
+            const copy = source.cloneNode(true);
+            const sourceFields = [...source.querySelectorAll('input, select, textarea')];
+
+            [...copy.querySelectorAll('input, select, textarea')].forEach((field, index) => {
+                const original = sourceFields[index];
+
+                if (! original) {
+                    return;
+                }
+
+                if (field.type === 'checkbox' || field.type === 'radio') {
+                    field.checked = original.checked;
+                } else {
+                    field.value = original.value;
+                }
+            });
+
+            const name = [...copy.querySelectorAll('input')].find((input) => /^questions\[[^\]]+\]\[name\]$/.test(input.name));
+
+            if (name) {
+                name.value = `${name.value} copy`;
+            }
+
+            const type = copy.querySelector('[data-type-select]');
+
+            if (type) {
+                copy.dataset.type = type.value;
+            }
+
+            list.append(copy);
+            renumberQuestions(list);
+            name?.focus();
         });
 
         document.addEventListener('click', (event) => {
@@ -644,9 +750,14 @@
             });
 
             const add = document.querySelector('[data-add-question]');
+            const duplicate = document.querySelector('[data-duplicate-question]');
 
             if (add) {
                 add.disabled = rows.length >= 64;
+            }
+
+            if (duplicate) {
+                duplicate.disabled = rows.length === 0 || rows.length >= 64;
             }
         }
 

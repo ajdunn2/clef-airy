@@ -189,7 +189,6 @@ class RunController extends Controller
             'prefill' => $this->prefill($savedCall, $isExample, $exampleState, $exampleQuestions, $defaultBody),
             'model' => $selectedModel,
             'models' => $models['models'],
-            'modelsFromApi' => $models['fromApi'],
             'modelError' => $models['error'],
         ]);
     }

@@ -76,7 +76,16 @@ export default () => ({
 
             const result = await response.json();
             if (!response.ok) {
-                this.error = result.errors ? Object.values(result.errors).flat().join('\n') : (result.message || 'The request could not be sent.');
+                const errors = result.errors ?? {};
+                this.error = result.errors ? Object.values(errors).flat().join('\n') : (result.message || 'The request could not be sent.');
+                if (errors.path || errors.method) {
+                    window.dispatchEvent(new CustomEvent('endpoint-invalid', {
+                        detail: {
+                            method: errors.method ?? [],
+                            path: errors.path ?? [],
+                        },
+                    }));
+                }
                 return;
             }
 
@@ -86,7 +95,6 @@ export default () => ({
 
             this.$refs.response.innerHTML = result.html;
             this.hasResponse = true;
-            this.feedback = 'Response received.';
             this.$refs.response.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
             window.dispatchEvent(new CustomEvent('response-updated'));
         } catch {

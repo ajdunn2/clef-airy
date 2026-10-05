@@ -16,7 +16,7 @@ class SystemOneTest extends TestCase
             ->assertSee('Compose Request')
             ->assertSee('API URL')
             ->assertSee('Model')
-            ->assertSee('Enter credentials only if your API requires basic authentication.')
+            ->assertDontSee('Enter credentials only if your API requires basic authentication.')
             ->assertSee('Password');
     }
 }

@@ -77,7 +77,17 @@ class RunWorkspaceTest extends TestCase
         $this->assertMatchesRegularExpression('/href="[^"]*\/run"\s+aria-current="page"/', $response->getContent());
         $this->assertMatchesRegularExpression('/Example #3\s*<\/a>\s*<button[^>]*>\s*Hide examples\s*<\/button>/', $response->getContent());
         $this->assertMatchesRegularExpression('/data-add-question[^>]*>\s*<svg\b[\s\S]*?M22 17a2 2 0 0 1-2 2H6\.828[\s\S]*?<\/svg>\s*Add question<\/button>/', $response->getContent());
+        $this->assertMatchesRegularExpression('/Add question<\/button>\s*<button[^>]*data-duplicate-question[^>]*>\s*<svg\b[\s\S]*?M5 7a2 2 0 0 0-2 2v11[\s\S]*?<\/svg>\s*Duplicate<\/button>/', $response->getContent());
         $this->assertSame(2, preg_match_all('/data-send[^>]*>\s*<svg\b[\s\S]*?M14\.536 21\.686[\s\S]*?<\/svg>\s*<span[^>]*>Send<\/span>/', $response->getContent()));
+        $this->assertMatchesRegularExpression('/copyRequest[\s\S]*?<svg\b[\s\S]*?M4 16c-1\.1 0-2-\.9-2-2V4[\s\S]*?<\/svg>\s*<span[^>]*>Copy request<\/span>/', $response->getContent());
+        $this->assertMatchesRegularExpression('/copyResponse[\s\S]*?<svg\b[\s\S]*?M4 16c-1\.1 0-2-\.9-2-2V4[\s\S]*?<\/svg>\s*<span[^>]*>Copy response<\/span>/', $response->getContent());
+        $this->assertMatchesRegularExpression('/name="body_mode"[^>]*value="form"[\s\S]*?<svg\b[\s\S]*?M4 14h6[\s\S]*?<\/svg>\s*Form/', $response->getContent());
+        $this->assertMatchesRegularExpression('/name="body_mode"[^>]*value="json"[\s\S]*?<svg\b[\s\S]*?M8 3H7a2 2 0 0 0-2 2v5[\s\S]*?<\/svg>\s*JSON/', $response->getContent());
+        $response->assertSeeInOrder(['POST', '/v1/systemone', 'Edit']);
+        $this->assertMatchesRegularExpression('/<select[^>]*id="method"[^>]*name="method"/', $response->getContent());
+        $this->assertMatchesRegularExpression('/<input[^>]*id="path"[^>]*name="path"[^>]*value="\/v1\/systemone"/', $response->getContent());
+        preg_match('/<input\b[^>]*id="path"[^>]*>/', $response->getContent(), $pathInput);
+        $this->assertStringNotContainsString('required', $pathInput[0]);
     }
 
     public function test_run_example_loads_the_example_and_selects_only_its_sidebar_link(): void

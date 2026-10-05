@@ -168,7 +168,9 @@
             <section class="flex min-h-0 min-w-0 flex-1 flex-col bg-canvas">
                 <header class="flex h-12 shrink-0 items-center gap-3 border-b border-line px-4 md:px-5">
                     <h1 class="text-sm font-semibold">@yield('heading')</h1>
-                    <p class="truncate text-[13px] text-muted">@yield('summary')</p>
+                    @hasSection('summary')
+                        <p class="truncate text-[13px] text-muted">@yield('summary')</p>
+                    @endif
                     <div class="ml-auto shrink-0">@yield('actions')</div>
                 </header>
                 <div class="min-h-0 flex-1 overflow-auto px-4 py-5 md:px-6">
