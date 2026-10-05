@@ -27,11 +27,18 @@
                 <div class="grid gap-1.5">
                     <label for="model" class="text-[13px] font-medium">Model</label>
                     <select id="model" name="model" class="rounded-lg border border-line bg-white px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">
+                        @if ($modelError)
+                            <option value="" selected disabled>Models unavailable</option>
+                        @endif
                         @foreach ($models as $name)
                             <option value="{{ $name }}" @selected(old('model', $model) === $name)>{{ $name }}</option>
                         @endforeach
                     </select>
-                    <p class="text-[13px] text-muted">{{ $modelsFromApi ? 'Installed on this Ollama server.' : 'Library models. Installed models appear here when the API URL can be reached.' }}</p>
+                    @if ($modelError)
+                        <p class="whitespace-pre-line text-[13px] text-red-700" role="alert">{{ $modelError }}</p>
+                    @else
+                        <p class="text-[13px] text-muted">{{ $modelsFromApi ? 'Available from this API.' : 'Suggested models; the API connection has not been verified.' }}</p>
+                    @endif
                     @error('model')
                         <p class="text-[13px] text-red-700">{{ $message }}</p>
                     @enderror

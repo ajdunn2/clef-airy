@@ -163,7 +163,7 @@ class RunController extends Controller
             default => [self::EXAMPLE_STATE, self::EXAMPLE_QUESTIONS],
         };
         $setting = SystemOneSetting::current();
-        $selectedModel = $savedCall?->model ?: ($setting?->model ?: 'clef-flash');
+        $selectedModel = $client->modelForApi($setting?->base_url, $savedCall?->model ?: $setting?->model);
         $models = $client->models($setting?->base_url, $selectedModel);
         $result = session('result');
 
@@ -190,6 +190,7 @@ class RunController extends Controller
             'model' => $selectedModel,
             'models' => $models['models'],
             'modelsFromApi' => $models['fromApi'],
+            'modelError' => $models['error'],
         ]);
     }
 

@@ -10,6 +10,154 @@ use Tests\TestCase;
 
 class SystemOneConfigurationTest extends TestCase
 {
+    public function test_unreachable_ollama_shows_an_error_without_clef_fallback_choices(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['http://host.containers.internal:11434/api/tags' => Http::failedConnection()]);
+        $this->put('/configuration', [
+            'api_url' => 'http://host.containers.internal:11434', 'auth_type' => 'none', 'model' => 'clef-flash',
+        ]);
+        $this->app->bind(SystemOneClient::class, fn () => new class extends SystemOneClient
+        {
+            protected function shouldLookupModels(): bool
+            {
+                return true;
+            }
+        });
+
+        $this->get(route('configuration.edit'))->assertOk()
+            ->assertSee('Could not load models from the API.')
+            ->assertSee('Models unavailable')
+            ->assertDontSee('value="clef', false);
+        $this->get('/run')->assertOk()
+            ->assertSee('Could not load models from the API.')
+            ->assertDontSee('value="clef', false);
+    }
+
+    public function test_ollama_model_choices_do_not_include_an_uninstalled_saved_model(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['http://host.containers.internal:11434/api/tags' => Http::response([
+            'models' => [['name' => 'clef:27b', 'capabilities' => ['decision']]],
+        ])]);
+        $client = new class extends SystemOneClient
+        {
+            protected function shouldLookupModels(): bool
+            {
+                return true;
+            }
+        };
+
+        $result = $client->models('http://host.containers.internal:11434', 'clef-flash');
+
+        $this->assertSame(['clef:27b'], $result['models']);
+        $this->assertTrue($result['fromApi']);
+        $this->assertNull($result['error']);
+    }
+
+    public function test_an_empty_ollama_model_list_has_no_fallback_choices(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['http://host.containers.internal:11434/api/tags' => Http::response(['models' => []])]);
+        $client = new class extends SystemOneClient
+        {
+            protected function shouldLookupModels(): bool
+            {
+                return true;
+            }
+        };
+
+        $result = $client->models('http://host.containers.internal:11434', 'clef-flash');
+
+        $this->assertSame([], $result['models']);
+        $this->assertSame('The API returned no available decision models.', $result['error']);
+    }
+
+    public function test_rejected_typesafe_keys_show_an_error_instead_of_fallback_model_choices(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['https://api.typesafe.ai/v1/models' => Http::response(['detail' => 'Invalid API key'], 401)]);
+        $this->put('/configuration', [
+            'api_url' => 'https://api.typesafe.ai', 'auth_type' => 'bearer',
+            'password' => 'wrong-key', 'model' => 'jev-latest',
+        ]);
+        $this->app->bind(SystemOneClient::class, fn () => new class extends SystemOneClient
+        {
+            protected function shouldLookupModels(): bool
+            {
+                return true;
+            }
+        });
+
+        $configuration = $this->get(route('configuration.edit'));
+        $workspace = $this->get('/run');
+
+        $configuration->assertOk()->assertSee('The API rejected your credentials.')
+            ->assertSee('Models unavailable')
+            ->assertDontSee('value="jev-latest"', false)
+            ->assertDontSee('value="jev-preview"', false)
+            ->assertDontSee('wrong-key');
+        $workspace->assertOk()->assertSee('The API rejected your credentials.')
+            ->assertDontSee('value="jev-latest"', false)
+            ->assertDontSee('value="jev-preview"', false);
+        Http::assertSentCount(2);
+    }
+
+    public function test_typesafe_connection_failures_do_not_show_fallback_models(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['https://api.typesafe.ai/v1/models' => Http::failedConnection()]);
+        $this->put('/configuration', [
+            'api_url' => 'https://api.typesafe.ai', 'auth_type' => 'bearer', 'password' => 'test-key',
+        ]);
+        $client = new class extends SystemOneClient
+        {
+            protected function shouldLookupModels(): bool
+            {
+                return true;
+            }
+        };
+
+        $result = $client->models('https://api.typesafe.ai', 'jev-latest');
+
+        $this->assertSame([], $result['models']);
+        $this->assertFalse($result['fromApi']);
+        $this->assertStringContainsString('Could not load models from TypeSafe.', $result['error']);
+    }
+
+    public function test_switching_from_ollama_to_typesafe_selects_jev_and_removes_clef_choices(): void
+    {
+        $this->put('/configuration', [
+            'api_url' => 'http://localhost:11434', 'model' => 'clef-flash:latest',
+        ]);
+
+        $this->put('/configuration', [
+            'api_url' => 'https://api.typesafe.ai', 'auth_type' => 'bearer',
+            'password' => 'test-api-key', 'model' => 'clef-flash:latest',
+        ])->assertRedirect(route('configuration.edit'));
+
+        $this->assertSame('jev-latest', SystemOneSetting::current()->model);
+        $this->get(route('configuration.edit'))
+            ->assertSee('value="jev-latest" selected', false)
+            ->assertDontSee('value="clef', false);
+        $this->get('/run')->assertSee('value="jev-latest" selected', false)
+            ->assertDontSee('value="clef', false);
+    }
+
+    public function test_existing_typesafe_settings_with_a_stale_clef_model_display_jev(): void
+    {
+        $this->put('/configuration', ['api_url' => 'https://api.typesafe.ai', 'auth_type' => 'bearer']);
+        $setting = SystemOneSetting::current();
+        $setting->model = 'clef-flash:latest';
+        $setting->save();
+
+        $this->get(route('configuration.edit'))
+            ->assertSee('value="jev-latest" selected', false)
+            ->assertDontSee('value="clef', false);
+        $this->get('/run')->assertSee('value="jev-latest" selected', false)
+            ->assertDontSee('value="clef', false);
+    }
+
     public function test_jev_uses_an_encrypted_bearer_key_and_discovers_models_with_it(): void
     {
         Http::preventStrayRequests();
@@ -35,7 +183,7 @@ class SystemOneConfigurationTest extends TestCase
         $models = $client->models($setting->base_url, $setting->model);
         $client->send($setting, 'POST', '/v1/systemone', '{"state":"Support needed.","questions":{}}', $setting->model);
 
-        $this->assertSame(['models' => ['jev-latest'], 'fromApi' => true], $models);
+        $this->assertSame(['models' => ['jev-latest'], 'fromApi' => true, 'error' => null], $models);
         $this->assertNotSame('test-api-key', $setting->getRawOriginal('password'));
         $this->get(route('configuration.edit'))->assertOk()->assertDontSee('test-api-key');
         Http::assertSentCount(2);
@@ -110,6 +258,7 @@ class SystemOneConfigurationTest extends TestCase
         $this->get('/')
             ->assertSee('https://api.example.test')
             ->assertSee('ada')
+            ->assertSee('placeholder="********"', false)
             ->assertSee('A password is saved. Leave this blank to keep it.')
             ->assertDontSee('secret');
     }

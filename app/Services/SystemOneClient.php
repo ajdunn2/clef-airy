@@ -12,21 +12,41 @@ use InvalidArgumentException;
 class SystemOneClient
 {
     /**
-     * @return array{models: list<string>, fromApi: bool}
+     * @return array{models: list<string>, fromApi: bool, error: ?string}
      */
     public function models(?string $baseUrl, ?string $selected = null): array
     {
-        $installed = $this->installedModels($baseUrl);
-        $names = $installed ?? ['clef-flash', 'clef', 'jev-latest', 'jev-preview'];
+        try {
+            $installed = $this->installedModels($baseUrl);
+        } catch (InvalidArgumentException $exception) {
+            return ['models' => [], 'fromApi' => false, 'error' => $exception->getMessage()];
+        }
+        $names = $installed ?? ($this->isTypeSafe($baseUrl) ? ['jev-latest', 'jev-preview'] : ['clef-flash', 'clef']);
+        $selected = filled($selected) ? $this->modelForApi($baseUrl, $selected) : null;
 
-        if (filled($selected) && ! in_array($selected, $names, true)) {
+        if (filled($selected) && ! in_array($selected, $names, true) && ($installed === null || $this->isTypeSafe($baseUrl))) {
             array_unshift($names, $selected);
         }
 
         return [
             'models' => array_values(array_unique($names)),
             'fromApi' => $installed !== null,
+            'error' => null,
         ];
+    }
+
+    public function modelForApi(?string $baseUrl, ?string $selected): string
+    {
+        if ($this->isTypeSafe($baseUrl) && (! filled($selected) || str_starts_with($selected, 'clef'))) {
+            return 'jev-latest';
+        }
+
+        return filled($selected) ? $selected : ($this->isTypeSafe($baseUrl) ? 'jev-latest' : 'clef-flash');
+    }
+
+    private function isTypeSafe(?string $baseUrl): bool
+    {
+        return strtolower((string) parse_url($baseUrl ?? '', PHP_URL_HOST)) === 'api.typesafe.ai';
     }
 
     public function send(SystemOneSetting $setting, string $method, string $path, ?string $body, ?string $model = null): SystemOneResponse
@@ -72,14 +92,22 @@ class SystemOneClient
         try {
             $setting = SystemOneSetting::current();
             $setting = $setting?->base_url === $baseUrl ? $setting : null;
-            $path = $setting?->auth_type === 'bearer' ? '/v1/models' : '/api/tags';
+            $path = $this->isTypeSafe($baseUrl) || $setting?->auth_type === 'bearer' ? '/v1/models' : '/api/tags';
             $response = $this->getQuietly($this->endpoint($baseUrl, $path), $setting);
-        } catch (InvalidArgumentException) {
-            return null;
+        } catch (InvalidArgumentException $exception) {
+            throw new InvalidArgumentException('Could not load models. Check the API URL in Configuration.', previous: $exception);
+        }
+
+        if ($response !== null && in_array($response->status(), [401, 403], true)) {
+            throw new InvalidArgumentException('The API rejected your credentials. Check the authentication type and password / API key in Configuration.');
         }
 
         if ($response === null || ! $response->successful() || ! is_array($response->json('models'))) {
-            return null;
+            if ($this->isTypeSafe($baseUrl)) {
+                throw new InvalidArgumentException("Could not load models from TypeSafe.\nCheck the API URL and connection, then try again.");
+            }
+
+            throw new InvalidArgumentException("Could not load models from the API.\nCheck the API URL and connection, then try again.");
         }
 
         $names = [];
@@ -103,7 +131,11 @@ class SystemOneClient
             $names[] = $name;
         }
 
-        return $names === [] ? null : array_values(array_unique($names));
+        if ($names === []) {
+            throw new InvalidArgumentException('The API returned no available decision models.');
+        }
+
+        return array_values(array_unique($names));
     }
 
     protected function shouldLookupModels(): bool

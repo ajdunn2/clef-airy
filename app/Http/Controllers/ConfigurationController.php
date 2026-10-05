@@ -16,7 +16,8 @@ class ConfigurationController extends Controller
     {
         $setting = SystemOneSetting::current();
         $apiUrl = $setting?->base_url ?: 'http://localhost:11434';
-        $models = $client->models($apiUrl, $setting?->model ?: 'clef-flash');
+        $model = $client->modelForApi($apiUrl, $setting?->model);
+        $models = $client->models($apiUrl, $model);
 
         return view('configuration.edit', [
             'apiUrl' => $setting?->base_url,
@@ -26,13 +27,14 @@ class ConfigurationController extends Controller
             'passwordNeedsReset' => $setting !== null
                 && ! str_starts_with((string) $setting->getRawOriginal('password'), 'native:v1:')
                 && $setting->passwordNeedsReset(),
-            'model' => $setting?->model ?: 'clef-flash',
+            'model' => $model,
             'models' => $models['models'],
             'modelsFromApi' => $models['fromApi'],
+            'modelError' => $models['error'],
         ]);
     }
 
-    public function update(Request $request): RedirectResponse
+    public function update(Request $request, SystemOneClient $client): RedirectResponse
     {
         $setting = SystemOneSetting::current();
 
@@ -75,7 +77,7 @@ class ConfigurationController extends Controller
             $setting->password = '';
         }
 
-        $setting->model = filled($validated['model'] ?? null) ? $validated['model'] : ($setting->model ?: 'clef-flash');
+        $setting->model = $client->modelForApi($setting->base_url, $validated['model'] ?? $setting->model);
 
         $setting->save();
 
