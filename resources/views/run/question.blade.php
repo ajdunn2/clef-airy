@@ -47,20 +47,14 @@
         <div class="flex items-center gap-1">
         <div data-move-questions>
             <button type="button" data-move-question="up" class="rounded p-0.5 text-muted hover:bg-white hover:text-ink disabled:opacity-40" aria-label="Move question up">
-                <svg viewBox="0 0 16 16" class="size-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M3.5 10.5 8 6 12.5 10.5"/>
-                </svg>
+                <x-lucide-chevron-up class="size-3" aria-hidden="true" />
             </button>
             <button type="button" data-move-question="down" class="rounded p-0.5 text-muted hover:bg-white hover:text-ink disabled:opacity-40" aria-label="Move question down">
-                <svg viewBox="0 0 16 16" class="size-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M3.5 5.5 8 10 12.5 5.5"/>
-                </svg>
+                <x-lucide-chevron-down class="size-3" aria-hidden="true" />
             </button>
         </div>
         <button type="button" data-remove-question class="rounded p-0.5 text-muted hover:bg-white hover:text-ink" aria-label="Remove question">
-            <svg viewBox="0 0 16 16" class="size-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-                <path d="M4.5 4.5 11.5 11.5M11.5 4.5 4.5 11.5"/>
-            </svg>
+            <x-lucide-x class="size-3" aria-hidden="true" />
         </button>
         </div>
     </div>
@@ -105,7 +99,7 @@
                         <input name="questions[{{ $index }}][options][{{ $optionIndex }}][name]" value="{{ $option['name'] }}" placeholder="Name" aria-label="Option name" class="{{ $field }}">
                         <input name="questions[{{ $index }}][options][{{ $optionIndex }}][description]" value="{{ $option['description'] }}" placeholder="Description" aria-label="Option description" class="{{ $field }}">
                     </div>
-                    <button type="button" data-remove-option class="rounded-lg px-2.5 py-2 text-[13px] text-muted hover:bg-white hover:text-ink" aria-label="Remove option">−</button>
+                    <button type="button" data-remove-option class="rounded-lg px-2.5 py-2 text-muted hover:bg-white hover:text-ink" aria-label="Remove option"><x-lucide-minus class="size-3" aria-hidden="true" /></button>
                 </div>
             @endforeach
         </div>
@@ -123,7 +117,7 @@
             @foreach ($levels as $levelIndex => $level)
                 <div class="flex items-center gap-2" data-level>
                     <input name="questions[{{ $index }}][levels][{{ $levelIndex }}]" value="{{ $level }}" placeholder="Level" aria-label="Score level" class="{{ $field }}">
-                    <button type="button" data-remove-level class="rounded-lg px-2.5 py-2 text-[13px] text-muted hover:bg-white hover:text-ink" aria-label="Remove level">−</button>
+                    <button type="button" data-remove-level class="rounded-lg px-2.5 py-2 text-muted hover:bg-white hover:text-ink" aria-label="Remove level"><x-lucide-minus class="size-3" aria-hidden="true" /></button>
                 </div>
             @endforeach
         </div>

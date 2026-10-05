@@ -19,7 +19,7 @@
 
     <div class="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
     @if ($configured)
-        <form id="run-form" method="POST" action="{{ route($storeRoute) }}" data-run x-ref="form" x-on:submit.prevent="send" :aria-busy="sending" :data-sending="sending" class="grid min-w-0 gap-4">
+        <form id="run-form" method="POST" action="{{ route($storeRoute) }}" data-run x-ref="form" x-on:submit="submit($event)" :aria-busy="sending" :data-sending="sending" class="grid min-w-0 gap-4">
             @csrf
             <fieldset :disabled="sending" class="grid min-w-0 gap-4">
 
@@ -42,7 +42,7 @@
                         <label for="method" class="text-[13px] font-medium">Method</label>
                         <select id="method" name="method" class="rounded-lg border border-line bg-white px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">
                             @foreach (['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as $method)
-                                <option value="{{ $method }}" @selected(old('method', 'POST') === $method)>{{ $method }}</option>
+                                <option value="{{ $method }}" @selected(old('method', $prefill['method']) === $method)>{{ $method }}</option>
                             @endforeach
                         </select>
                         @error('method')
@@ -56,7 +56,7 @@
                             id="path"
                             name="path"
                             type="text"
-                            value="{{ old('path', '/v1/systemone') }}"
+                            value="{{ old('path', $prefill['path']) }}"
                             required
                             class="rounded-lg border border-line bg-white px-3 py-2 font-mono text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25"
                             placeholder="/v1/systemone"
@@ -71,15 +71,16 @@
 
             <div class="grid gap-4 rounded-xl border border-line bg-white p-4 shadow-sm shadow-black/3">
                 <div data-switch class="grid gap-3">
-                    <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex flex-wrap items-center gap-3">
                         <span class="text-[13px] font-medium">Request</span>
-                        <div class="flex rounded-lg bg-canvas p-0.5 text-[13px]">
+                        <button type="button" x-on:click="openBookmark" class="inline-flex items-center gap-1 rounded-lg border border-line bg-white px-3 py-1.5 text-[13px] font-medium"><x-lucide-bookmark class="size-4 shrink-0" aria-hidden="true" />Bookmark</button>
+                        <div class="ml-auto flex rounded-lg bg-canvas p-0.5 text-[13px]">
                             <label class="cursor-pointer rounded-md px-2.5 py-1 text-muted">
-                                <input type="radio" name="body_mode" value="form" data-pick="form" class="sr-only" @checked(old('body_mode', 'form') === 'form')>
+                                <input type="radio" name="body_mode" value="form" data-pick="form" class="sr-only" @checked(old('body_mode', $prefill['body_mode']) === 'form')>
                                 Form
                             </label>
                             <label class="cursor-pointer rounded-md px-2.5 py-1 text-muted">
-                                <input type="radio" name="body_mode" value="json" data-pick="json" class="sr-only" @checked(old('body_mode', 'form') === 'json')>
+                                <input type="radio" name="body_mode" value="json" data-pick="json" class="sr-only" @checked(old('body_mode', $prefill['body_mode']) === 'json')>
                                 JSON
                             </label>
                         </div>
@@ -88,14 +89,14 @@
                     <div data-panel="form" class="grid gap-3">
                         <div class="grid gap-1.5">
                             <label for="state" class="text-[13px] font-medium">State</label>
-                            <textarea id="state" name="state" rows="3" autofocus class="rounded-lg border border-line bg-white px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">{{ old('state', $isExample ? $exampleState : '') }}</textarea>
+                            <textarea id="state" name="state" rows="3" autofocus class="rounded-lg border border-line bg-white px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">{{ old('state', $prefill['state']) }}</textarea>
                             @error('state')
                                 <p class="text-[13px] text-red-700">{{ $message }}</p>
                             @enderror
                         </div>
 
                         <div class="grid gap-3" data-questions>
-                            @foreach (old('questions', $isExample ? $exampleQuestions : [[]]) as $index => $question)
+                            @foreach (old('questions', $prefill['questions']) as $index => $question)
                                 @include('run.question', ['index' => $index, 'question' => $question])
                             @endforeach
                         </div>
@@ -105,7 +106,7 @@
                         @enderror
 
                         <div class="flex items-center justify-between gap-3">
-                            <button type="button" data-add-question class="rounded-lg border border-line bg-white px-3 py-1.5 text-[13px] font-medium disabled:opacity-40">Add question</button>
+                            <button type="button" data-add-question class="inline-flex items-center gap-1 rounded-lg border border-line bg-white px-3 py-1.5 text-[13px] font-medium disabled:opacity-40"><x-lucide-message-square-plus class="size-4 shrink-0" aria-hidden="true" />Add question</button>
                         </div>
                     </div>
 
@@ -113,7 +114,7 @@
                         <label for="body" class="text-[13px] font-medium">JSON</label>
                         <div data-json-editor class="relative grid overflow-hidden rounded-lg border border-line bg-white focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25">
                             <pre data-json-preview aria-hidden="true" class="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre p-0 px-3 py-2 font-mono text-[13px] leading-5"></pre>
-                            <textarea id="body" name="body" rows="16" wrap="off" spellcheck="false" class="relative w-full resize-y bg-transparent px-3 py-2 font-mono text-[13px] leading-5 outline-none">{{ old('body', $isExample ? $defaultBody : '') }}</textarea>
+                            <textarea id="body" name="body" rows="16" wrap="off" spellcheck="false" class="relative w-full resize-y bg-transparent px-3 py-2 font-mono text-[13px] leading-5 outline-none">{{ old('body', $prefill['body']) }}</textarea>
                         </div>
                         <div class="flex items-center gap-3">
                             <button type="button" data-format-json class="rounded-lg border border-line bg-white px-3 py-1.5 text-[13px] font-medium">Format JSON</button>
@@ -137,18 +138,18 @@
                             <input name="questions[__INDEX__][options][__OPTION__][name]" value="" placeholder="Name" aria-label="Option name" class="w-full rounded-lg border border-line bg-white px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">
                             <input name="questions[__INDEX__][options][__OPTION__][description]" value="" placeholder="Description" aria-label="Option description" class="w-full rounded-lg border border-line bg-white px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">
                         </div>
-                        <button type="button" data-remove-option class="rounded-lg px-2.5 py-2 text-[13px] text-muted hover:bg-white hover:text-ink" aria-label="Remove option">−</button>
+                        <button type="button" data-remove-option class="rounded-lg px-2.5 py-2 text-muted hover:bg-white hover:text-ink" aria-label="Remove option"><x-lucide-minus class="size-3" aria-hidden="true" /></button>
                     </div>
                 </template>
 
                 <template id="level-template">
                     <div class="flex items-center gap-2" data-level>
                         <input name="questions[__INDEX__][levels][__LEVEL__]" value="" placeholder="Level" aria-label="Score level" class="w-full rounded-lg border border-line bg-white px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">
-                        <button type="button" data-remove-level class="rounded-lg px-2.5 py-2 text-[13px] text-muted hover:bg-white hover:text-ink" aria-label="Remove level">−</button>
+                        <button type="button" data-remove-level class="rounded-lg px-2.5 py-2 text-muted hover:bg-white hover:text-ink" aria-label="Remove level"><x-lucide-minus class="size-3" aria-hidden="true" /></button>
                     </div>
                 </template>
 
-                <div class="flex items-center justify-end gap-3">
+                <div class="flex flex-wrap items-center justify-end gap-3">
                     <span class="text-[13px] text-muted">Ctrl/⌘⏎ to send</span>
                     <button type="submit" data-send x-text="sending ? 'Sending…' : 'Send'" class="rounded-lg bg-accent px-3.5 py-1.5 text-[13px] font-medium text-white hover:bg-accent/90">Send</button>
                 </div>
@@ -180,6 +181,47 @@
         </div>
     </section>
     </div>
+
+    @if ($configured)
+        <dialog
+            x-ref="bookmarkDialog"
+            x-on:click="if ($event.target === $el) $el.close()"
+            aria-labelledby="bookmark-title"
+            class="m-auto w-[min(24rem,calc(100vw-2rem))] rounded-xl border border-line bg-white p-4 text-ink shadow-lg shadow-black/10 backdrop:bg-ink/30"
+            @if ($errors->has('name')) data-open @endif
+        >
+            <div class="grid gap-3">
+                <h2 id="bookmark-title" class="text-sm font-semibold">Bookmark</h2>
+                <div class="grid gap-1.5">
+                    <label for="bookmark-name" class="text-[13px] font-medium">Name</label>
+                    <input
+                        id="bookmark-name"
+                        x-ref="bookmarkName"
+                        form="run-form"
+                        name="name"
+                        value="{{ old('name', $prefill['name']) }}"
+                        x-on:keydown.enter.prevent="$refs.bookmarkSubmit.click()"
+                        class="w-full rounded-lg border border-line bg-white px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25"
+                    >
+                    @error('name')
+                        <p class="text-[13px] text-red-700">{{ $message }}</p>
+                    @enderror
+                </div>
+                <div class="flex items-center justify-end gap-2">
+                    <button type="button" x-on:click="$refs.bookmarkDialog.close()" class="rounded-lg border border-line bg-white px-3 py-1.5 text-[13px] font-medium">Cancel</button>
+                    <button
+                        type="submit"
+                        x-ref="bookmarkSubmit"
+                        form="run-form"
+                        data-save
+                        formaction="{{ $savedCall ? route('calls.update', $savedCall) : route('calls.store') }}"
+                        :disabled="sending"
+                        class="rounded-lg bg-accent px-3.5 py-1.5 text-[13px] font-medium text-white hover:bg-accent/90"
+                    >Bookmark</button>
+                </div>
+            </div>
+        </dialog>
+    @endif
 
     <script>
         const runForm = document.querySelector('[data-run]');

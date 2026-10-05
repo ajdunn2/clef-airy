@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\SavedCall;
 use App\Models\SystemOneSetting;
 use App\Services\SystemOneClient;
 use App\Services\SystemOnePayload;
@@ -139,6 +140,16 @@ class RunController extends Controller
 
     public function create(SystemOneClient $client, SystemOnePayload $payload): View
     {
+        return $this->runForm($client, $payload, null);
+    }
+
+    public function show(SavedCall $savedCall, SystemOneClient $client, SystemOnePayload $payload): View
+    {
+        return $this->runForm($client, $payload, $savedCall);
+    }
+
+    private function runForm(SystemOneClient $client, SystemOnePayload $payload, ?SavedCall $savedCall): View
+    {
         $exampleNumber = match (request()->route()->getName()) {
             'run.example' => 1,
             'run.example2' => 2,
@@ -152,7 +163,8 @@ class RunController extends Controller
             default => [self::EXAMPLE_STATE, self::EXAMPLE_QUESTIONS],
         };
         $setting = SystemOneSetting::current();
-        $models = $client->models($setting?->base_url, $setting?->model ?: 'clef-flash');
+        $selectedModel = $savedCall?->model ?: ($setting?->model ?: 'clef-flash');
+        $models = $client->models($setting?->base_url, $selectedModel);
         $result = session('result');
 
         if (is_array($result) && is_string($result['body'] ?? null)) {
@@ -160,10 +172,13 @@ class RunController extends Controller
             $result['pretty'] = $payload->pretty($result['body']);
         }
 
+        $defaultBody = in_array($exampleNumber, [2, 3], true) ? $payload->fromForm($exampleState, $exampleQuestions) : trim(self::DEFAULT_BODY);
+
         return view('run.create', [
             'configured' => $setting !== null,
             'isExample' => $isExample,
-            'pageTitle' => $isExample ? 'Example #'.$exampleNumber : 'Run',
+            'savedCall' => $savedCall,
+            'pageTitle' => $savedCall?->name ?? ($isExample ? 'Example #'.$exampleNumber : 'Run'),
             'storeRoute' => match ($exampleNumber) {
                 1 => 'run.example.store',
                 2 => 'run.example2.store',
@@ -171,13 +186,43 @@ class RunController extends Controller
                 default => 'run.store',
             },
             'result' => $result,
-            'defaultBody' => in_array($exampleNumber, [2, 3], true) ? $payload->fromForm($exampleState, $exampleQuestions) : trim(self::DEFAULT_BODY),
-            'exampleState' => $exampleState,
-            'exampleQuestions' => $exampleQuestions,
-            'model' => $setting?->model ?: 'clef-flash',
+            'prefill' => $this->prefill($savedCall, $isExample, $exampleState, $exampleQuestions, $defaultBody),
+            'model' => $selectedModel,
             'models' => $models['models'],
             'modelsFromApi' => $models['fromApi'],
         ]);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $exampleQuestions
+     * @return array{body_mode: string, method: string, path: string, state: string, questions: list<array<string, mixed>>, body: string, name: string}
+     */
+    private function prefill(?SavedCall $savedCall, bool $isExample, string $exampleState, array $exampleQuestions, string $defaultBody): array
+    {
+        if ($savedCall !== null) {
+            $form = $savedCall->body_mode === 'form';
+            $questions = $savedCall->questions;
+
+            return [
+                'body_mode' => $form ? 'form' : 'json',
+                'method' => $savedCall->method,
+                'path' => $savedCall->path,
+                'state' => $form ? (string) $savedCall->state : '',
+                'questions' => $form && is_array($questions) && $questions !== [] ? $questions : [[]],
+                'body' => $form ? '' : (string) $savedCall->body,
+                'name' => $savedCall->name,
+            ];
+        }
+
+        return [
+            'body_mode' => 'form',
+            'method' => 'POST',
+            'path' => '/v1/systemone',
+            'state' => $isExample ? $exampleState : '',
+            'questions' => $isExample ? $exampleQuestions : [[]],
+            'body' => $isExample ? $defaultBody : '',
+            'name' => '',
+        ];
     }
 
     public function store(Request $request, SystemOneClient $client, SystemOnePayload $payload): RedirectResponse|JsonResponse

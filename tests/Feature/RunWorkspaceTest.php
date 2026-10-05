@@ -17,6 +17,8 @@ class RunWorkspaceTest extends TestCase
         $this->assertMatchesRegularExpression('/<textarea[^>]*id="state"[^>]*><\/textarea>/', $response->getContent());
         $this->assertMatchesRegularExpression('/<textarea[^>]*id="body"[^>]*><\/textarea>/', $response->getContent());
         $this->assertMatchesRegularExpression('/href="[^"]*\/run"\s+aria-current="page"/', $response->getContent());
+        $this->assertMatchesRegularExpression('/Example #3\s*<\/a>\s*<button[^>]*>\s*Hide examples\s*<\/button>/', $response->getContent());
+        $this->assertMatchesRegularExpression('/data-add-question[^>]*>\s*<svg\b[\s\S]*?M22 17a2 2 0 0 1-2 2H6\.828[\s\S]*?<\/svg>\s*Add question<\/button>/', $response->getContent());
     }
 
     public function test_run_example_loads_the_example_and_selects_only_its_sidebar_link(): void

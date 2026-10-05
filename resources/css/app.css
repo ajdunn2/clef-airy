@@ -20,6 +20,10 @@
     display: none !important;
 }
 
+html[data-examples='hidden'] [data-example] {
+    display: none;
+}
+
 html {
     scroll-behavior: smooth;
 }

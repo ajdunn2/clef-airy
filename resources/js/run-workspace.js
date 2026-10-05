@@ -8,7 +8,33 @@ export default () => ({
     init() {
         this.$nextTick(() => {
             this.hasResponse = Boolean(this.$refs.response?.querySelector('[data-response-body]'));
+
+            if (this.$refs.bookmarkDialog?.hasAttribute('data-open')) {
+                this.openBookmark();
+            }
         });
+    },
+
+    openBookmark() {
+        const dialog = this.$refs.bookmarkDialog;
+
+        if (dialog && ! dialog.open) {
+            dialog.showModal();
+        }
+
+        this.$nextTick(() => {
+            this.$refs.bookmarkName?.focus();
+            this.$refs.bookmarkName?.select();
+        });
+    },
+
+    submit(event) {
+        if (event.submitter?.hasAttribute('data-save')) {
+            return;
+        }
+
+        event.preventDefault();
+        this.send();
     },
 
     shortcut(event) {
