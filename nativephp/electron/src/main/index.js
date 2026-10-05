@@ -23,7 +23,7 @@ app.whenReady().then(() => {
     } catch {
         dialog.showErrorBox(
             'Encryption key unavailable',
-            'Clef Airy Decisions could not read its local encryption key. Check permissions for its application-data folder.',
+            'Clef Airy Decisions API Tester could not read its local encryption key. Check permissions for its application-data folder.',
         );
         app.quit();
         return;

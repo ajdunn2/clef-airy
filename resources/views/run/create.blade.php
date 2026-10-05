@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', $pageTitle.' — Clef Airy Decisions')
+@section('title', $pageTitle.' — Clef Airy Decisions API Tester')
 
 @section('heading', $pageTitle)
 

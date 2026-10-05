@@ -1,10 +1,10 @@
-# Clef Airy Decisions: The Decision Conductor
+# Clef Airy Decisions API Tester: The Decision Conductor
 
 **A native desktop workbench for Ollama System One & Jev Decision APIs.**
 
-![Clef Airy Decisions, with a decision request on the left and the structured response on the right.](docs/run.jpg)
+![Clef Airy Decisions API Tester, with a decision request on the left and the structured response on the right.](docs/run.jpg)
 
-Clef Airy Decisions is a desktop app for [System One](https://docs.ollama.com/api/systemone) decision API requests and viewing structured responses. It is a [Laravel](https://laravel.com) application packaged with [NativePHP for Desktop](https://nativephp.com/docs/desktop/getting-started/introduction).
+Clef Airy Decisions API Tester is a desktop app for [System One](https://docs.ollama.com/api/systemone) decision API requests and viewing structured responses. It is a [Laravel](https://laravel.com) application packaged with [NativePHP for Desktop](https://nativephp.com/docs/desktop/getting-started/introduction).
 
 Save the API URL, pick a model, and optionally store basic-auth credentials. On the Run page, describe a situation and ask yes/no, choice, or score questions. You can edit the request as a form or as JSON, then read the answer in plain language or as JSON.
 
@@ -54,7 +54,7 @@ composer test
 
 ## macOS builds
 
-Quit Clef Airy Decisions before rebuilding. The build replaces the app bundle in `nativephp/electron/dist`; a running copy can lose files its PHP server is using.
+Quit Clef Airy Decisions API Tester before rebuilding. The build replaces the app bundle in `nativephp/electron/dist`; a running copy can lose files its PHP server is using.
 
 For an Apple Silicon build:
 
@@ -85,13 +85,13 @@ Release mode requires signing and notarization credentials and stops the build i
 Local builds without a signing identity use ad-hoc signing and are not notarized. If Gatekeeper blocks a build you created or trust, remove its quarantine attribute:
 
 ```bash
-xattr -dr com.apple.quarantine 'nativephp/electron/dist/mac-arm64/Clef Airy Decisions.app'
+xattr -dr com.apple.quarantine 'nativephp/electron/dist/mac-arm64/Clef Airy Decisions API Tester.app'
 ```
 
 If you moved the app to `/Applications`, run:
 
 ```bash
-xattr -dr com.apple.quarantine '/Applications/Clef Airy Decisions.app'
+xattr -dr com.apple.quarantine '/Applications/Clef Airy Decisions API Tester.app'
 ```
 
 ## Upgrading NativePHP
@@ -108,4 +108,4 @@ Windows builds use `public/icon.ico`.
 
 ## License
 
-Clef Airy Decisions is open-source software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Clef Airy Decisions API Tester is open-source software licensed under the [MIT license](https://opensource.org/licenses/MIT).

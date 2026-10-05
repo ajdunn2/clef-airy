@@ -13,7 +13,7 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Clef Airy Decisions'),
+    'name' => env('APP_NAME', 'Clef Airy Decisions API Tester'),
 
     /*
     |--------------------------------------------------------------------------

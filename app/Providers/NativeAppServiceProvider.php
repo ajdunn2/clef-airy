@@ -15,7 +15,7 @@ class NativeAppServiceProvider implements ProvidesPhpIni
     public function boot(): void
     {
         Window::open()
-            ->title('Clef Airy Decisions')
+            ->title('Clef Airy Decisions API Tester')
             ->route(static::initialRoute())
             ->width(1040)
             ->height(720)

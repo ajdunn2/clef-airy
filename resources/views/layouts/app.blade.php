@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>@yield('title', 'Clef Airy Decisions')</title>
+        <title>@yield('title', 'Clef Airy Decisions API Tester')</title>
         <link rel="icon" href="{{ asset('icon.png') }}" type="image/png">
         <script>
             try {
@@ -20,7 +20,10 @@
             <aside class="flex shrink-0 flex-col border-b border-line bg-shell md:h-screen md:w-56 md:border-r md:border-b-0">
                 <div class="flex items-center gap-2 px-4 py-3 md:pt-4">
                     <img src="{{ asset('icon.png') }}" alt="" class="size-7" width="28" height="28">
-                    <span class="text-sm font-semibold tracking-tight">Clef Airy Decisions</span>
+                    <div class="flex flex-col">
+                        <span class="text-sm font-semibold tracking-tight">Clef Airy</span>
+                        <span class="text-[11px] text-muted">Decisions API Tester</span>
+                    </div>
                 </div>
 
                 <nav
