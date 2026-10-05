@@ -3,6 +3,7 @@ export default () => ({
     error: '',
     feedback: '',
     hasResponse: false,
+    copied: '',
 
     init() {
         this.$nextTick(() => {
@@ -56,6 +57,7 @@ export default () => ({
             this.$refs.response.innerHTML = result.html;
             this.hasResponse = true;
             this.feedback = 'Response received.';
+            this.$refs.response.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
             window.dispatchEvent(new CustomEvent('response-updated'));
         } catch {
             this.error = 'The app could not complete the request. Your input has been kept; try again.';
@@ -64,17 +66,97 @@ export default () => ({
         }
     },
 
+    showCopied(name) {
+        clearTimeout(this.copyTimer);
+        this.copied = name;
+        this.copyTimer = setTimeout(() => {
+            this.copied = '';
+        }, 2000);
+    },
+
     async copyResponse() {
         const body = this.$refs.response.querySelector('[data-response-body]');
         if (!body) {
             return;
         }
 
-        try {
-            await navigator.clipboard.writeText(body.value);
-            this.feedback = 'Response copied.';
-        } catch {
+        if (! await this.copyText(body.value)) {
             this.feedback = 'Unable to access the clipboard. Select the response text to copy it.';
+
+            return;
+        }
+
+        this.showCopied('response');
+    },
+
+    async copyRequest() {
+        let source = this.requestBody();
+
+        if (source === null) {
+            this.feedback = 'Nothing to copy yet.';
+
+            return;
+        }
+
+        const model = document.getElementById('model')?.value;
+
+        if (model) {
+            try {
+                const body = JSON.parse(source);
+
+                if (body !== null && typeof body === 'object' && ! Array.isArray(body)) {
+                    source = JSON.stringify({ ...body, model }, null, 2);
+                }
+            } catch {}
+        }
+
+        if (! await this.copyText(source)) {
+            this.feedback = 'Unable to access the clipboard. Copy it from the JSON view instead.';
+
+            return;
+        }
+
+        this.showCopied('request');
+    },
+
+    requestBody() {
+        if (document.querySelector('input[name="body_mode"][value="json"]:checked')) {
+            const body = document.getElementById('body')?.value ?? '';
+
+            return body.trim() === '' ? null : body;
+        }
+
+        return this.$refs.form ? formJson(this.$refs.form) : null;
+    },
+
+    async copyText(text) {
+        try {
+            await navigator.clipboard.writeText(text);
+
+            return true;
+        } catch {
+            return copyWithEditableRegion(text);
         }
     },
 });
+
+function copyWithEditableRegion(text) {
+    const helper = document.createElement('textarea');
+    helper.value = text;
+    helper.setAttribute('readonly', '');
+    helper.style.position = 'fixed';
+    helper.style.opacity = '0';
+    document.body.append(helper);
+    helper.select();
+    let copied = false;
+
+    try {
+        copied = document.execCommand('copy');
+    } catch {
+        copied = false;
+    }
+
+    helper.remove();
+
+    return copied;
+}

@@ -1,5 +1,6 @@
 import Alpine from 'alpinejs';
 import runWorkspace from './run-workspace';
+import { formatJson, shouldKeepExistingJson, syncFormToJson } from './run-form-json';
 
 Alpine.data('runWorkspace', runWorkspace);
 Alpine.start();
@@ -99,13 +100,18 @@ async function initializeJsonHighlighting() {
         input.addEventListener('scroll', synchronizeScroll);
 
         document.querySelector('[data-format-json]').addEventListener('click', () => {
-            try {
-                const formatted = JSON.stringify(JSON.parse(input.value), null, 2);
-                input.setRangeText(formatted, 0, input.value.length, 'start');
+            const result = formatJson(input.value);
+
+            if (result.ok) {
+                input.setRangeText(result.json, 0, input.value.length, 'start');
                 updatePreview();
                 status.textContent = 'JSON formatted.';
-            } catch {
-                status.textContent = 'Fix the JSON syntax before formatting.';
+                status.classList.add('text-muted');
+                status.classList.remove('text-red-700');
+            } else {
+                status.textContent = result.message;
+                status.classList.add('text-red-700');
+                status.classList.remove('text-muted');
             }
 
             input.focus();
@@ -119,4 +125,55 @@ async function initializeJsonHighlighting() {
     } else {
         highlighter.dispose();
     }
+}
+
+const runForm = document.querySelector('[data-run]');
+const jsonBody = document.getElementById('body');
+const jsonStatus = document.querySelector('[data-json-status]');
+
+if (runForm && jsonBody && jsonStatus) {
+    const loadedAsJson = runForm.querySelector('input[name="body_mode"]:checked')?.value === 'json';
+    let jsonEdited = shouldKeepExistingJson(new FormData(runForm), jsonBody.value, loadedAsJson);
+    let suppressJsonEdited = false;
+
+    const showJsonStatus = (message, danger) => {
+        jsonStatus.textContent = message;
+        jsonStatus.classList.toggle('text-red-700', danger);
+        jsonStatus.classList.toggle('text-muted', ! danger);
+    };
+
+    jsonBody.addEventListener('input', () => {
+        if (suppressJsonEdited) {
+            return;
+        }
+
+        jsonEdited = true;
+        showJsonStatus('', false);
+    });
+
+    runForm.querySelectorAll('input[name="body_mode"]').forEach((radio) => {
+        radio.addEventListener('change', (event) => {
+            if (runForm.dataset.sending === 'true') {
+                return;
+            }
+
+            if (event.target.value !== 'json') {
+                showJsonStatus('', false);
+
+                return;
+            }
+
+            const result = syncFormToJson(new FormData(runForm), jsonBody.value, jsonEdited);
+
+            if (result.action === 'replace') {
+                suppressJsonEdited = true;
+                jsonBody.value = result.json;
+                jsonBody.dispatchEvent(new Event('input', { bubbles: true }));
+                suppressJsonEdited = false;
+                jsonEdited = false;
+            }
+
+            showJsonStatus(result.message, result.tone === 'danger');
+        });
+    });
 }

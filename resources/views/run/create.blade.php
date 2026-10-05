@@ -88,7 +88,7 @@
                     <div data-panel="form" class="grid gap-3">
                         <div class="grid gap-1.5">
                             <label for="state" class="text-[13px] font-medium">State</label>
-                            <textarea id="state" name="state" rows="3" class="rounded-lg border border-line bg-white px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">{{ old('state', $isExample ? $exampleState : '') }}</textarea>
+                            <textarea id="state" name="state" rows="3" autofocus class="rounded-lg border border-line bg-white px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">{{ old('state', $isExample ? $exampleState : '') }}</textarea>
                             @error('state')
                                 <p class="text-[13px] text-red-700">{{ $message }}</p>
                             @enderror
@@ -119,7 +119,7 @@
                             <button type="button" data-format-json class="rounded-lg border border-line bg-white px-3 py-1.5 text-[13px] font-medium">Format JSON</button>
                             <span data-json-status role="status" class="text-[13px] text-muted"></span>
                         </div>
-                        <p class="text-[13px] text-muted">The selected model is added to this JSON when you send.</p>
+                        <p class="text-[13px] text-muted">Switching views fills the other from this one and replaces its edits. The selected model is added when you send.</p>
                         @error('body')
                             <p class="text-[13px] text-red-700">{{ $message }}</p>
                         @enderror
@@ -148,7 +148,8 @@
                     </div>
                 </template>
 
-                <div class="flex justify-end">
+                <div class="flex items-center justify-end gap-3">
+                    <span class="text-[13px] text-muted">Ctrl/⌘⏎ to send</span>
                     <button type="submit" data-send x-text="sending ? 'Sending…' : 'Send'" class="rounded-lg bg-accent px-3.5 py-1.5 text-[13px] font-medium text-white hover:bg-accent/90">Send</button>
                 </div>
             </div>
@@ -164,7 +165,10 @@
     <section class="min-w-0 self-start rounded-xl border border-line bg-white p-4 shadow-sm shadow-black/3 lg:sticky lg:top-0" aria-label="Response" :aria-busy="sending">
         <div class="mb-3 flex min-h-8 items-center justify-between gap-3">
             <p role="status" class="text-[13px] text-muted" x-text="sending ? 'Sending request…' : feedback"></p>
-            <button type="button" x-on:click="copyResponse" :disabled="!hasResponse" class="rounded-lg border border-line px-3 py-1.5 text-[13px] font-medium disabled:opacity-40">Copy response</button>
+            <div class="flex items-center gap-2">
+                <button type="button" x-on:click="copyRequest" :disabled="sending" x-text="copied === 'request' ? 'Copied' : 'Copy request'" :class="copied === 'request' ? 'border-accent text-accent' : 'border-line'" class="min-w-27 rounded-lg border px-3 py-1.5 text-[13px] font-medium transition-colors duration-300 disabled:opacity-40">Copy request</button>
+                <button type="button" x-on:click="copyResponse" :disabled="!hasResponse" x-text="copied === 'response' ? 'Copied' : 'Copy response'" :class="copied === 'response' ? 'border-accent text-accent' : 'border-line'" class="min-w-30 rounded-lg border px-3 py-1.5 text-[13px] font-medium transition-colors duration-300 disabled:opacity-40">Copy response</button>
+            </div>
         </div>
         <p x-cloak x-show="error" x-text="error" role="alert" class="mb-3 whitespace-pre-line text-[13px] text-red-700"></p>
         <div x-ref="response" class="min-w-0">
@@ -277,11 +281,210 @@
         }
 
         document.addEventListener('change', (event) => {
-            if (! event.target.matches('[data-type-select]')) {
+            if (event.target.matches('[data-type-select]')) {
+                event.target.closest('[data-question]').dataset.type = event.target.value;
+
                 return;
             }
 
-            event.target.closest('[data-question]').dataset.type = event.target.value;
+            if (! event.target.matches('input[name="body_mode"]') || ! runForm || runForm.dataset.sending === 'true') {
+                return;
+            }
+
+            const status = document.querySelector('[data-json-status]');
+
+            if (event.target.value === 'json') {
+                const json = formJson(runForm);
+
+                if (json === null) {
+                    status.textContent = 'Add a named question to fill this from the form.';
+
+                    return;
+                }
+
+                const textarea = document.getElementById('body');
+                textarea.value = json;
+                textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                status.textContent = 'Filled from the form.';
+
+                return;
+            }
+
+            const error = fillForm(runForm, document.getElementById('body').value);
+
+            if (error) {
+                event.target.checked = false;
+                document.querySelector('input[name="body_mode"][value="json"]').checked = true;
+                status.textContent = error;
+            }
         });
+
+        function fillForm(form, source) {
+            if (source.trim() === '') {
+                return null;
+            }
+
+            let body;
+
+            try {
+                body = JSON.parse(source);
+            } catch {
+                return 'Fix the JSON syntax before switching to the form.';
+            }
+
+            if (body === null || typeof body !== 'object' || Array.isArray(body) || typeof body.questions !== 'object' || Array.isArray(body.questions)) {
+                return 'Add a questions object before switching to the form.';
+            }
+
+            const list = form.querySelector('[data-questions]');
+            const questionTemplate = document.querySelector('#question-template');
+            let index = 0;
+
+            list.replaceChildren();
+
+            for (const [name, question] of Object.entries(body.questions)) {
+                if (question === null || typeof question !== 'object' || Array.isArray(question)) {
+                    continue;
+                }
+
+                list.insertAdjacentHTML('beforeend', questionTemplate.innerHTML.replaceAll('__INDEX__', String(index)));
+                fillQuestion(list.lastElementChild, index, name, question);
+                index++;
+            }
+
+            if (list.children.length === 0) {
+                list.insertAdjacentHTML('beforeend', questionTemplate.innerHTML.replaceAll('__INDEX__', '0'));
+            }
+
+            const state = document.getElementById('state');
+
+            if (typeof body.state === 'string') {
+                state.value = body.state;
+            } else if (body.state !== undefined && body.state !== null) {
+                state.value = JSON.stringify(body.state, null, 2);
+            } else {
+                state.value = '';
+            }
+
+            const model = form.querySelector('#model');
+
+            if (model && body.model && [...model.options].some((option) => option.value === body.model)) {
+                model.value = body.model;
+            }
+
+            return null;
+        }
+
+        function fillQuestion(row, index, name, question) {
+            const field = (suffix) => row.querySelector(`[name="questions[${index}]${suffix}"]`);
+            const type = ['noul', 'choice', 'score'].includes(question.type) ? question.type : 'noul';
+
+            field('[name]').value = name;
+            field('[type]').value = type;
+            field('[instructions]').value = question.instructions ?? '';
+            row.dataset.type = type;
+
+            const criteria = question.criteria ?? {};
+
+            if (type === 'noul') {
+                field('[true]').value = criteria.true ?? '';
+                field('[false]').value = criteria.false ?? '';
+
+                return;
+            }
+
+            if (type === 'choice') {
+                const options = row.querySelector('[data-options]');
+                options.replaceChildren();
+
+                Object.entries(criteria).forEach(([optionName, description], optionIndex) => {
+                    options.insertAdjacentHTML(
+                        'beforeend',
+                        document.querySelector('#option-template').innerHTML.replaceAll('__INDEX__', String(index)).replaceAll('__OPTION__', String(optionIndex)),
+                    );
+
+                    const optionRow = options.lastElementChild;
+                    optionRow.querySelector(`[name="questions[${index}][options][${optionIndex}][name]"]`).value = optionName;
+                    optionRow.querySelector(`[name="questions[${index}][options][${optionIndex}][description]"]`).value = description ?? '';
+                });
+
+                return;
+            }
+
+            const levels = row.querySelector('[data-levels]');
+            levels.replaceChildren();
+
+            (Array.isArray(criteria) ? criteria : []).forEach((level, levelIndex) => {
+                levels.insertAdjacentHTML(
+                    'beforeend',
+                    document.querySelector('#level-template').innerHTML.replaceAll('__INDEX__', String(index)).replaceAll('__LEVEL__', String(levelIndex)),
+                );
+                levels.lastElementChild.querySelector('input').value = level;
+            });
+        }
+
+        function formJson(form) {
+            const values = {};
+
+            for (const [field, value] of new FormData(form).entries()) {
+                const keys = field.match(/[^\[\]]+/g);
+
+                if (keys === null) {
+                    continue;
+                }
+
+                let node = values;
+
+                for (const key of keys.slice(0, -1)) {
+                    node = node[key] ??= {};
+                }
+
+                node[keys.at(-1)] = value.trim();
+            }
+
+            const questions = {};
+
+            for (const question of Object.values(values.questions ?? {})) {
+                if (question.name) {
+                    questions[question.name] = questionJson(question);
+                }
+            }
+
+            if (Object.keys(questions).length === 0) {
+                return null;
+            }
+
+            return JSON.stringify({ state: stateValue(values.state ?? ''), questions }, null, 2);
+        }
+
+        function questionJson(question) {
+            const criteria = question.type === 'choice'
+                ? Object.fromEntries(Object.values(question.options ?? {}).filter((option) => option.name).map((option) => [option.name, option.description || null]))
+                : question.type === 'score'
+                    ? Object.values(question.levels ?? {}).filter((level) => level !== '')
+                    : question.true || question.false
+                        ? { true: question.true ?? '', false: question.false ?? '' }
+                        : null;
+
+            const entry = { type: question.type, instructions: question.instructions ?? '' };
+
+            if (criteria !== null && (Array.isArray(criteria) ? criteria.length > 0 : Object.keys(criteria).length > 0)) {
+                entry.criteria = criteria;
+            }
+
+            return entry;
+        }
+
+        function stateValue(state) {
+            try {
+                const parsed = JSON.parse(state);
+
+                if (parsed !== null && typeof parsed === 'object') {
+                    return parsed;
+                }
+            } catch {}
+
+            return state;
+        }
     </script>
 @endsection

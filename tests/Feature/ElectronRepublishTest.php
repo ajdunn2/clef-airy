@@ -41,7 +41,8 @@ class ElectronRepublishTest extends TestCase
     {
         $directory = new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS);
         $filtered = new \RecursiveCallbackFilterIterator($directory, function (SplFileInfo $current): bool {
-            return ! ($current->isDir() && in_array($current->getFilename(), ElectronCustomizations::SKIPPED_DIRECTORIES, true));
+            return ! in_array($current->getFilename(), ['.DS_Store'], true)
+                && ! ($current->isDir() && in_array($current->getFilename(), ElectronCustomizations::SKIPPED_DIRECTORIES, true));
         });
         $iterator = new \RecursiveIteratorIterator($filtered);
         $files = [];

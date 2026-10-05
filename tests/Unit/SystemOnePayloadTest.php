@@ -167,5 +167,15 @@ class SystemOnePayloadTest extends TestCase
         $this->assertSame('Major toward Critical', $view['answers'][2]['headline']);
         $this->assertSame('2.7', $view['answers'][2]['detail']);
         $this->assertSame('346 tokens in', $view['usage']);
+        $this->assertNull($view['error']);
+    }
+
+    public function test_it_presents_api_errors_without_answers(): void
+    {
+        $view = (new SystemOnePayload)->present('{"error": "invalid character \'}\' looking for beginning of object key string"}');
+
+        $this->assertSame('invalid character \'}\' looking for beginning of object key string', $view['error']);
+        $this->assertSame([], $view['answers']);
+        $this->assertNull($view['usage']);
     }
 }

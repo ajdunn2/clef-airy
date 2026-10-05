@@ -152,4 +152,17 @@ class RunWorkspaceTest extends TestCase
         $this->assertStringContainsString('Failed', $response->json('html'));
         $this->assertStringContainsString('API unavailable.', $response->json('html'));
     }
+
+    public function test_api_error_bodies_render_as_a_formatted_error_card(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['http://api.example.test/*' => Http::response('{"error": "invalid character \'}\' looking for beginning of object key string"}', 400)]);
+        $this->put('/configuration', ['api_url' => 'http://api.example.test']);
+
+        $response = $this->postJson('/run', ['method' => 'POST', 'path' => '/v1/systemone', 'body' => '{"state": "Hello"}']);
+
+        $response->assertOk();
+        $this->assertStringContainsString('API error', $response->json('html'));
+        $this->assertStringContainsString('invalid character &#039;}&#039; looking for beginning of object key string', $response->json('html'));
+    }
 }

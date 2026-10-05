@@ -79,7 +79,7 @@ class SystemOnePayload
     }
 
     /**
-     * @return array{model: ?string, answers: list<array<string, mixed>>, usage: ?string}|null
+     * @return array{model: ?string, answers: list<array<string, mixed>>, usage: ?string, error: ?string}|null
      */
     public function present(string $body): ?array
     {
@@ -89,8 +89,21 @@ class SystemOnePayload
 
         $decoded = json_decode($body, true);
 
-        if (! is_array($decoded) || ! isset($decoded['answers']) || ! is_array($decoded['answers'])) {
+        if (! is_array($decoded)) {
             return null;
+        }
+
+        if (! isset($decoded['answers']) || ! is_array($decoded['answers'])) {
+            $error = isset($decoded['error']) && is_string($decoded['error']) && $decoded['error'] !== ''
+                ? $decoded['error']
+                : null;
+
+            return $error === null ? null : [
+                'model' => isset($decoded['model']) ? (string) $decoded['model'] : null,
+                'answers' => [],
+                'usage' => null,
+                'error' => $error,
+            ];
         }
 
         $answers = [];
@@ -117,6 +130,7 @@ class SystemOnePayload
             'model' => isset($decoded['model']) ? (string) $decoded['model'] : null,
             'answers' => $answers,
             'usage' => $usage,
+            'error' => null,
         ];
     }
 

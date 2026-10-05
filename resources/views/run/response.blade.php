@@ -26,39 +26,48 @@
 
         <div data-panel="form" class="grid gap-3">
             @if (is_array($result['decision'] ?? null))
-                @foreach ($result['decision']['answers'] as $answer)
-                    <article class="grid gap-2 rounded-lg bg-canvas p-3">
+                @if ($result['decision']['error'])
+                    <article class="grid gap-2 rounded-lg bg-red-50 p-3">
                         <div class="flex items-baseline justify-between gap-3">
-                            <h3 class="text-[13px] font-medium">{{ $answer['name'] }}</h3>
-                            <p class="text-sm font-semibold">{{ $answer['headline'] }}</p>
+                            <h3 class="text-[13px] font-medium text-red-700">API error</h3>
                         </div>
-                        @if ($answer['detail'])
-                            <p class="text-[13px] text-muted">{{ $answer['detail'] }}</p>
-                        @endif
-                        @if ($answer['rows'] !== [])
-                            <ul class="grid gap-2">
-                                @foreach ($answer['rows'] as $row)
-                                    <li class="grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)_2.5rem] items-center gap-2 text-[13px]">
-                                        <span @class(['truncate font-medium' => $row['selected'], 'truncate text-muted' => ! $row['selected']])>{{ $row['label'] }}</span>
-                                        <span class="h-1.5 overflow-hidden rounded-full bg-line" aria-hidden="true">
-                                            <span @class([
-                                                'block h-full rounded-full',
-                                                'bg-accent' => $row['selected'],
-                                                'bg-ink/25' => ! $row['selected'],
-                                            ]) style="width: {{ (int) ($row['share'] ?? 0) }}%"></span>
-                                        </span>
-                                        <span @class(['text-right', 'font-medium' => $row['selected'], 'text-muted' => ! $row['selected']])>{{ $row['value'] }}</span>
-                                    </li>
-                                @endforeach
-                            </ul>
-                        @endif
-                        @if ($answer['confidence'])
-                            <p class="text-[13px] text-muted">Confidence {{ $answer['confidence'] }}</p>
-                        @endif
+                        <p class="text-[13px] text-red-700">{{ $result['decision']['error'] }}</p>
                     </article>
-                @endforeach
-                @if ($result['decision']['usage'])
-                    <p class="text-[13px] text-muted">{{ $result['decision']['usage'] }}</p>
+                @else
+                    @foreach ($result['decision']['answers'] as $answer)
+                        <article class="grid gap-2 rounded-lg bg-canvas p-3">
+                            <div class="flex items-baseline justify-between gap-3">
+                                <h3 class="text-[13px] font-medium">{{ $answer['name'] }}</h3>
+                                <p class="text-sm font-semibold">{{ $answer['headline'] }}</p>
+                            </div>
+                            @if ($answer['detail'])
+                                <p class="text-[13px] text-muted">{{ $answer['detail'] }}</p>
+                            @endif
+                            @if ($answer['rows'] !== [])
+                                <ul class="grid gap-2">
+                                    @foreach ($answer['rows'] as $row)
+                                        <li class="grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)_2.5rem] items-center gap-2 text-[13px]">
+                                            <span @class(['truncate font-medium' => $row['selected'], 'truncate text-muted' => ! $row['selected']])>{{ $row['label'] }}</span>
+                                            <span class="h-1.5 overflow-hidden rounded-full bg-line" aria-hidden="true">
+                                                <span @class([
+                                                    'block h-full rounded-full',
+                                                    'bg-accent' => $row['selected'],
+                                                    'bg-ink/25' => ! $row['selected'],
+                                                ]) style="width: {{ (int) ($row['share'] ?? 0) }}%"></span>
+                                            </span>
+                                            <span @class(['text-right', 'font-medium' => $row['selected'], 'text-muted' => ! $row['selected']])>{{ $row['value'] }}</span>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            @endif
+                            @if ($answer['confidence'])
+                                <p class="text-[13px] text-muted">Confidence {{ $answer['confidence'] }}</p>
+                            @endif
+                        </article>
+                    @endforeach
+                    @if ($result['decision']['usage'])
+                        <p class="text-[13px] text-muted">{{ $result['decision']['usage'] }}</p>
+                    @endif
                 @endif
             @else
                 <pre data-highlight-json class="max-h-[28rem] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-canvas p-3 font-mono text-[13px]">{{ $result['pretty'] ?? $result['body'] }}</pre>

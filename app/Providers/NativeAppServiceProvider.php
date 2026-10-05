@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\SystemOneSetting;
 use Native\Desktop\Contracts\ProvidesPhpIni;
 use Native\Desktop\Facades\Window;
 
@@ -15,7 +16,7 @@ class NativeAppServiceProvider implements ProvidesPhpIni
     {
         Window::open()
             ->title('Clef Airy Decisions')
-            ->route('configuration.edit')
+            ->route(static::initialRoute())
             ->width(1040)
             ->height(720)
             ->minWidth(720)
@@ -24,6 +25,11 @@ class NativeAppServiceProvider implements ProvidesPhpIni
             ->suppressNewWindows()
             ->preventLeaveDomain()
             ->backgroundColor('#e2e6ee');
+    }
+
+    public static function initialRoute(): string
+    {
+        return SystemOneSetting::current() === null ? 'configuration.edit' : 'run.create';
     }
 
     /**
