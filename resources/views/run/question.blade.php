@@ -38,10 +38,10 @@
         $levels[] = '';
     }
 
-    $field = 'w-full rounded-lg border border-line bg-white px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25';
+    $field = 'w-full rounded-lg border border-line bg-field px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25';
 @endphp
 
-<div class="grid gap-3 rounded-lg border border-line bg-canvas/60 p-3" data-question data-type="{{ $question['type'] }}">
+<div class="grid gap-4 rounded-lg border border-line bg-canvas/60 p-4" data-question data-type="{{ $question['type'] }}">
     <div data-question-actions class="-mx-1.5 -mt-1.5 flex items-center justify-between gap-2">
         <span data-question-number class="grid size-5 shrink-0 place-items-center rounded-full border border-line bg-white text-[11px] font-medium leading-none tabular-nums text-ink">{{ (int) $index + 1 }}</span>
         <div class="flex items-center gap-1">
@@ -111,7 +111,7 @@
     <div data-criteria="score" class="grid gap-2">
         <div class="grid gap-0.5">
             <p class="text-[13px] font-medium">Levels</p>
-            <p class="text-[13px] text-muted">Lowest first. Jev supports up to 10 levels; Ollama supports up to 26.</p>
+            <p class="text-[13px] text-muted">Lowest first.</p>
         </div>
         <div class="grid gap-2" data-levels>
             @foreach ($levels as $levelIndex => $level)

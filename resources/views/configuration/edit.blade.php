@@ -13,7 +13,7 @@
         <p class="text-[13px] text-red-700" role="alert">Your saved password cannot be decrypted. Re-enter it, or remove it if your API does not require a password.</p>
     @endif
 
-    <form method="POST" action="{{ route('configuration.update') }}" x-data="{ authType: {{ \Illuminate\Support\Js::from(old('auth_type', $authType)) }} }" class="grid gap-4 rounded-xl border border-line bg-white p-4 shadow-sm shadow-black/3" autocomplete="off">
+    <form method="POST" action="{{ route('configuration.update') }}" x-data="{ authType: {{ \Illuminate\Support\Js::from(old('auth_type', $authType)) }} }" class="grid gap-4 rounded-xl border border-line bg-white p-5" autocomplete="off">
         @csrf
         @method('PUT')
 
@@ -25,7 +25,7 @@
                 type="url"
                 value="{{ old('api_url', $apiUrl ?: 'http://localhost:11434') }}"
                 required
-                class="rounded-lg border border-line bg-white px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25"
+                class="rounded-lg border border-line bg-field px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25"
                 placeholder="http://localhost:11434"
             >
             @error('api_url')
@@ -35,7 +35,7 @@
 
         <div class="grid gap-1.5">
             <label for="model" class="text-[13px] font-medium">Model</label>
-            <select id="model" name="model" class="rounded-lg border border-line bg-white px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">
+            <select id="model" name="model" class="rounded-lg border border-line bg-field px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">
                 @if ($modelError)
                     <option value="" selected disabled>Models unavailable</option>
                 @endif
@@ -53,7 +53,7 @@
 
         <div class="grid gap-1.5">
             <label for="auth_type" class="text-[13px] font-medium">Authentication</label>
-            <select id="auth_type" name="auth_type" x-model="authType" class="rounded-lg border border-line bg-white px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">
+            <select id="auth_type" name="auth_type" x-model="authType" class="rounded-lg border border-line bg-field px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">
                 @foreach (['none' => 'None (e.g. local Ollama)', 'basic' => 'Basic (e.g. protected API proxy)', 'bearer' => 'Bearer API key (e.g. Jev / TypeSafe)'] as $value => $label)
                     <option value="{{ $value }}" @selected(old('auth_type', $authType) === $value)>{{ $label }}</option>
                 @endforeach
@@ -71,7 +71,7 @@
                 type="text"
                 value="{{ old('username', $username) }}"
                 autocomplete="off"
-                class="rounded-lg border border-line bg-white px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25"
+                class="rounded-lg border border-line bg-field px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25"
             >
             @error('username')
                 <p class="text-[13px] text-red-700">{{ $message }}</p>
@@ -86,7 +86,7 @@
                 type="password"
                 autocomplete="new-password"
                 @if ($hasPassword) placeholder="********" @endif
-                class="rounded-lg border border-line bg-white px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25"
+                class="rounded-lg border border-line bg-field px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25"
             >
             @if ($passwordNeedsReset)
                 <p class="text-[13px] text-muted">Enter your API password to replace the unreadable saved value.</p>

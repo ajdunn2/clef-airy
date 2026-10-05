@@ -18,11 +18,11 @@
         @php($workspace = request()->routeIs('run.*', 'calls.show'))
         <div @if ($workspace) x-data="runWorkspace" x-on:keydown.window="shortcut($event)" @endif class="flex min-h-screen flex-col md:h-screen md:flex-row md:overflow-hidden">
             <aside class="flex shrink-0 flex-col border-b border-line bg-shell md:h-screen md:w-56 md:border-r md:border-b-0">
-                <div class="flex items-center gap-2 px-4 py-3 md:pt-4">
+                <div class="flex items-center gap-3 px-4 py-5">
                     <img src="{{ asset('icon.png') }}" alt="" class="size-7" width="28" height="28">
                     <div class="flex flex-col">
-                        <span class="text-sm font-semibold tracking-tight">Clef Airy</span>
-                        <span class="text-[11px] text-muted">Decisions API Tester</span>
+                        <span class="app-wordmark">Clef Airy</span>
+                        <span class="mt-1 font-mono text-[10px] tracking-tight text-muted">Decisions API Tester</span>
                     </div>
                 </div>
 
@@ -49,8 +49,8 @@
                         href="{{ route('run.create') }}"
                         @if (request()->routeIs('run.create')) aria-current="page" @endif
                         @class([
-                            'flex items-center gap-2.5 rounded-lg border px-2.5 py-2 text-[13px] font-semibold transition-colors',
-                            'border-accent bg-accent text-white hover:bg-accent/90' => request()->routeIs('run.create'),
+                            'flex items-center gap-2.5 rounded-lg border px-2.5 py-2 text-[13px] font-medium transition-colors',
+                            'border-accent bg-accent font-semibold text-white hover:bg-accent/90' => request()->routeIs('run.create'),
                             'border-accent/25 bg-accent/10 text-accent hover:bg-accent/15' => ! request()->routeIs('run.create'),
                         ])
                     >
@@ -63,7 +63,7 @@
                         @if (request()->routeIs('run.example')) aria-current="page" @endif
                         @class([
                             'flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium',
-                            'bg-ink text-white' => request()->routeIs('run.example'),
+                            'bg-ink font-semibold text-white' => request()->routeIs('run.example'),
                             'text-ink/75 hover:bg-ink/6' => ! request()->routeIs('run.example'),
                         ])
                     >
@@ -76,7 +76,7 @@
                         @if (request()->routeIs('run.example2')) aria-current="page" @endif
                         @class([
                             'flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium',
-                            'bg-ink text-white' => request()->routeIs('run.example2'),
+                            'bg-ink font-semibold text-white' => request()->routeIs('run.example2'),
                             'text-ink/75 hover:bg-ink/6' => ! request()->routeIs('run.example2'),
                         ])
                     >
@@ -89,7 +89,7 @@
                         @if (request()->routeIs('run.example3')) aria-current="page" @endif
                         @class([
                             'flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium',
-                            'bg-ink text-white' => request()->routeIs('run.example3'),
+                            'bg-ink font-semibold text-white' => request()->routeIs('run.example3'),
                             'text-ink/75 hover:bg-ink/6' => ! request()->routeIs('run.example3'),
                         ])
                     >
@@ -111,7 +111,7 @@
                                     title="{{ $menuCall->name }}"
                                     @class([
                                         'flex min-w-0 flex-1 items-center gap-2.5 py-1.5 pl-2.5 text-[13px] font-medium',
-                                        'text-white' => $current,
+                                        'font-semibold text-white' => $current,
                                         'text-ink/75' => ! $current,
                                     ])
                                 >
@@ -139,7 +139,7 @@
                         href="{{ route('configuration.edit') }}"
                         @class([
                             'flex shrink-0 items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium md:mt-auto',
-                            'bg-ink text-white' => request()->routeIs('configuration.*'),
+                            'bg-ink font-semibold text-white' => request()->routeIs('configuration.*'),
                             'text-ink/75 hover:bg-ink/6' => ! request()->routeIs('configuration.*'),
                         ])
                     >
@@ -166,14 +166,14 @@
             </aside>
 
             <section class="flex min-h-0 min-w-0 flex-1 flex-col bg-canvas">
-                <header class="flex h-12 shrink-0 items-center gap-3 border-b border-line px-4 md:px-5">
-                    <h1 class="text-sm font-semibold">@yield('heading')</h1>
+                <header class="workspace-header flex min-h-18 shrink-0 flex-wrap items-center gap-3 border-b border-line px-4 py-3 md:px-6">
+                    <h1 class="workspace-title">@yield('heading')</h1>
                     @hasSection('summary')
                         <p class="truncate text-[13px] text-muted">@yield('summary')</p>
                     @endif
                     <div class="ml-auto shrink-0">@yield('actions')</div>
                 </header>
-                <div class="min-h-0 flex-1 overflow-auto px-4 py-5 md:px-6">
+                <div class="min-h-0 flex-1 overflow-auto px-4 py-6 md:px-6">
                     <div @class(['grid w-full min-w-0 gap-4', 'max-w-2xl' => ! $workspace])>
                         @yield('content')
                     </div>

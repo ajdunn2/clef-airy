@@ -178,7 +178,7 @@ class RunController extends Controller
             'configured' => $setting !== null,
             'isExample' => $isExample,
             'savedCall' => $savedCall,
-            'pageTitle' => $savedCall?->name ?? ($isExample ? 'Example #'.$exampleNumber : 'Run'),
+            'pageTitle' => $savedCall?->name ?? ($isExample ? 'Example #'.$exampleNumber : 'Compose a request'),
             'storeRoute' => match ($exampleNumber) {
                 1 => 'run.example.store',
                 2 => 'run.example2.store',

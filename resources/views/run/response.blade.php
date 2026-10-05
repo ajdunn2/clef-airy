@@ -1,6 +1,6 @@
 <div class="grid min-w-0 gap-3">
     <div class="flex items-center gap-2">
-        <h2 class="text-[13px] font-medium">Response</h2>
+        <h2 class="technical-label">Response</h2>
         <span @class([
             'rounded-full px-2 py-0.5 text-xs font-medium',
             'bg-red-50 text-red-700' => $result['status'] === null || $result['status'] >= 400,
