@@ -585,9 +585,10 @@ class SystemOneConfigurationTest extends TestCase
             'path' => '/',
         ])->assertRedirect(route('run.create'));
 
-        $this->get('/run')
+        $page = $this->get('/run')
             ->assertSee('Failed')
             ->assertSee('Could not reach System One.');
+        $this->assertSame(1, substr_count($page->getContent(), '>Response<'));
     }
 
     public function test_model_lookup_uses_only_the_saved_api_url(): void

@@ -231,7 +231,7 @@
     @endif
 
     <section class="instrument-panel min-w-0 self-start rounded-xl border border-line bg-white p-5 lg:sticky lg:top-0" aria-label="Response" :aria-busy="sending">
-        <div class="mb-4 instrument-heading technical-label">Response</div>
+        <h2 class="mb-4 instrument-heading technical-label">Response</h2>
         <div class="mb-3 flex min-h-8 flex-wrap items-center justify-between gap-3">
             <p role="status" class="text-[13px] text-muted" x-text="sending ? 'Sending request…' : feedback"></p>
             <div class="flex items-center gap-2">
@@ -388,7 +388,10 @@
             const name = [...copy.querySelectorAll('input')].find((input) => /^questions\[[^\]]+\]\[name\]$/.test(input.name));
 
             if (name) {
-                name.value = `${name.value} copy`;
+                const existing = [...list.querySelectorAll('input')]
+                    .filter((input) => /^questions\[[^\]]+\]\[name\]$/.test(input.name))
+                    .map((input) => input.value);
+                name.value = window.nextDuplicateName(name.value, existing);
             }
 
             const type = copy.querySelector('[data-type-select]');

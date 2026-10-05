@@ -57,7 +57,7 @@
         "test": [
             "@php artisan config:clear --ansi @no_additional_args",
             "@php artisan test",
-            "node --test tests/js/run-form-json.test.js"
+            "node --test tests/js/*.test.js"
         ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",

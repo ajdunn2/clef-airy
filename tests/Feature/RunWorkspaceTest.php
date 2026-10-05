@@ -71,6 +71,8 @@ class RunWorkspaceTest extends TestCase
         $this->put('/configuration', ['api_url' => 'http://api.example.test']);
 
         $response = $this->get('/run')->assertOk()->assertSee('Example #1')->assertSee('Example #2');
+        $this->assertSame(3, substr_count($response->getContent(), 'Compose a request'));
+        $this->assertStringNotContainsString('Compose Request', $response->getContent());
 
         $this->assertMatchesRegularExpression('/<textarea[^>]*id="state"[^>]*><\/textarea>/', $response->getContent());
         $this->assertMatchesRegularExpression('/<textarea[^>]*id="body"[^>]*><\/textarea>/', $response->getContent());
@@ -176,6 +178,7 @@ class RunWorkspaceTest extends TestCase
         $this->assertStringContainsString('201', $response->json('html'));
         $this->assertStringContainsString('http://api.example.test/events', $response->json('html'));
         $this->assertStringContainsString('data-response-body', $response->json('html'));
+        $this->assertStringNotContainsString('>Response<', $response->json('html'));
         Http::assertSentCount(1);
     }
 
