@@ -105,7 +105,7 @@
                         @enderror
 
                         <div class="flex items-center justify-between gap-3">
-                            <button type="button" data-add-question class="rounded-lg border border-line bg-white px-3 py-1.5 text-[13px] font-medium">Add question</button>
+                            <button type="button" data-add-question class="rounded-lg border border-line bg-white px-3 py-1.5 text-[13px] font-medium disabled:opacity-40">Add question</button>
                         </div>
                     </div>
 
@@ -190,11 +190,17 @@
             }
 
             const list = document.querySelector('[data-questions]');
+
+            if (list.querySelectorAll('[data-question]').length >= 64) {
+                return;
+            }
+
             const template = document.querySelector('#question-template');
             const indexes = [...list.querySelectorAll('[name^="questions["]')].map((input) => Number(input.name.match(/^questions\[(\d+)\]/)?.[1] ?? -1));
             const index = Math.max(-1, ...indexes) + 1;
 
             list.insertAdjacentHTML('beforeend', template.innerHTML.replaceAll('__INDEX__', String(index)));
+            renumberQuestions(list);
         });
 
         document.addEventListener('click', (event) => {
@@ -234,6 +240,14 @@
                 return;
             }
 
+            const move = event.target.closest('[data-move-question]');
+
+            if (move) {
+                moveQuestion(move);
+
+                return;
+            }
+
             const button = event.target.closest('[data-remove-question]');
 
             if (! button) {
@@ -247,6 +261,7 @@
             }
 
             button.closest('[data-question]').remove();
+            renumberQuestions(list);
         });
 
         function insertRow(question, listSelector, templateSelector, pattern, token) {
@@ -372,6 +387,8 @@
                 model.value = body.model;
             }
 
+            renumberQuestions(list);
+
             return null;
         }
 
@@ -485,6 +502,113 @@
             } catch {}
 
             return state;
+        }
+
+        const questionSlides = new WeakMap();
+
+        function moveQuestion(button) {
+            const row = button.closest('[data-question]');
+            const list = row?.parentElement;
+            const sibling = button.dataset.moveQuestion === 'up'
+                ? row?.previousElementSibling
+                : row?.nextElementSibling;
+
+            if (! row || ! list || ! sibling?.matches('[data-question]')) {
+                return;
+            }
+
+            const starts = new Map([row, sibling].map((card) => [card, card.getBoundingClientRect()]));
+
+            for (const card of starts.keys()) {
+                delete card.dataset.sliding;
+                card.style.transform = '';
+            }
+
+            if (button.dataset.moveQuestion === 'up') {
+                list.insertBefore(row, sibling);
+            } else {
+                list.insertBefore(sibling, row);
+            }
+
+            renumberQuestions(list);
+
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                return;
+            }
+
+            const token = {};
+
+            for (const [card, start] of starts) {
+                const delta = start.top - card.getBoundingClientRect().top;
+
+                if (delta !== 0) {
+                    card.style.transform = `translateY(${delta}px)`;
+                    questionSlides.set(card, token);
+                }
+            }
+
+            row.offsetHeight;
+
+            for (const card of starts.keys()) {
+                if (questionSlides.get(card) !== token) {
+                    continue;
+                }
+
+                card.dataset.sliding = card === row ? 'moved' : '';
+                card.style.transform = '';
+                window.setTimeout(() => {
+                    if (questionSlides.get(card) !== token) {
+                        return;
+                    }
+
+                    delete card.dataset.sliding;
+                    questionSlides.delete(card);
+                }, 320);
+            }
+        }
+
+        function renumberQuestions(list) {
+            const rows = [...list.children].filter((row) => row.matches('[data-question]'));
+
+            rows.forEach((row, index) => {
+                row.querySelectorAll('[name^="questions["]').forEach((input) => {
+                    input.name = input.name.replace(/^questions\[[^\]]+\]/, `questions[${index}]`);
+                });
+                row.querySelectorAll('label[for]').forEach((label) => {
+                    label.htmlFor = label.htmlFor.replace(/-\d+$/, `-${index}`);
+                });
+                row.querySelectorAll('[id^="question-"]').forEach((field) => {
+                    field.id = field.id.replace(/-\d+$/, `-${index}`);
+                });
+
+                const up = row.querySelector('[data-move-question="up"]');
+                const down = row.querySelector('[data-move-question="down"]');
+                const number = row.querySelector('[data-question-number]');
+
+                if (number) {
+                    number.textContent = String(index + 1);
+                }
+
+                if (up) {
+                    up.disabled = index === 0;
+                }
+
+                if (down) {
+                    down.disabled = index === rows.length - 1;
+                }
+            });
+
+            const add = document.querySelector('[data-add-question]');
+
+            if (add) {
+                add.disabled = rows.length >= 64;
+            }
+        }
+
+        const questionList = document.querySelector('[data-questions]');
+
+        if (questionList) {
+            renumberQuestions(questionList);
         }
     </script>
 @endsection

@@ -63,6 +63,34 @@ aside {
     display: none;
 }
 
+[data-question-actions] {
+    display: none;
+}
+
+[data-questions]:has(> [data-question] ~ [data-question]) [data-question-actions] {
+    display: flex;
+}
+
+[data-move-questions] {
+    display: flex;
+    flex-direction: column;
+}
+
+[data-question][data-sliding] {
+    transition: transform 280ms ease;
+}
+
+[data-question][data-sliding='moved'] {
+    position: relative;
+    z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [data-question][data-sliding] {
+        transition: none;
+    }
+}
+
 body.is-sending {
     cursor: progress;
 }

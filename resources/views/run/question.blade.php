@@ -42,7 +42,30 @@
 @endphp
 
 <div class="grid gap-3 rounded-lg border border-line bg-canvas/60 p-3" data-question data-type="{{ $question['type'] }}">
-    <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_9rem_auto]">
+    <div data-question-actions class="-mx-1.5 -mt-1.5 flex items-center justify-between gap-2">
+        <span data-question-number class="grid size-5 shrink-0 place-items-center rounded-full border border-line bg-white text-[11px] font-medium leading-none tabular-nums text-ink">{{ (int) $index + 1 }}</span>
+        <div class="flex items-center gap-1">
+        <div data-move-questions>
+            <button type="button" data-move-question="up" class="rounded p-0.5 text-muted hover:bg-white hover:text-ink disabled:opacity-40" aria-label="Move question up">
+                <svg viewBox="0 0 16 16" class="size-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M3.5 10.5 8 6 12.5 10.5"/>
+                </svg>
+            </button>
+            <button type="button" data-move-question="down" class="rounded p-0.5 text-muted hover:bg-white hover:text-ink disabled:opacity-40" aria-label="Move question down">
+                <svg viewBox="0 0 16 16" class="size-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M3.5 5.5 8 10 12.5 5.5"/>
+                </svg>
+            </button>
+        </div>
+        <button type="button" data-remove-question class="rounded p-0.5 text-muted hover:bg-white hover:text-ink" aria-label="Remove question">
+            <svg viewBox="0 0 16 16" class="size-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <path d="M4.5 4.5 11.5 11.5M11.5 4.5 4.5 11.5"/>
+            </svg>
+        </button>
+        </div>
+    </div>
+    <div class="grid gap-3">
+    <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_9rem]">
         <div class="grid gap-1.5">
             <label class="text-[13px] font-medium" for="question-name-{{ $index }}">Name</label>
             <input id="question-name-{{ $index }}" name="questions[{{ $index }}][name]" value="{{ $question['name'] }}" class="{{ $field }}">
@@ -54,9 +77,6 @@
                     <option value="{{ $value }}" @selected($question['type'] === $value)>{{ $label }}</option>
                 @endforeach
             </select>
-        </div>
-        <div class="flex items-end">
-            <button type="button" data-remove-question class="rounded-lg px-2.5 py-2 text-[13px] text-muted hover:bg-white hover:text-ink">Remove</button>
         </div>
     </div>
 
@@ -110,5 +130,6 @@
         <div>
             <button type="button" data-add-level class="rounded-lg border border-line bg-white px-2.5 py-1.5 text-[13px] font-medium" aria-label="Add level">+</button>
         </div>
+    </div>
     </div>
 </div>
