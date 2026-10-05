@@ -1,6 +1,6 @@
-# Clef Airy Decisions API Tester: The Decision Conductor
+# Clef Airy Decisions API Tester
 
-**A native desktop workbench for Ollama System One & Jev Decision APIs.**
+A desktop app for sending requests to Ollama System One and Jev decision APIs.
 
 ## Install and run
 
@@ -12,44 +12,58 @@ Download your installer from [GitHub Releases](https://github.com/ajdunn2/clef-a
 
 ### macOS
 
-Open the `.dmg`, drag **Clef Airy Decisions** into **Applications**, then open it.
+Open the `.dmg`, drag **Clef Airy Decisions API Tester** into **Applications**, then open it.
 
 If macOS blocks it, run this in Terminal, then open the app again:
 
 ```bash
-xattr -dr com.apple.quarantine '/Applications/Clef Airy Decisions.app'
+xattr -dr com.apple.quarantine '/Applications/Clef Airy Decisions API Tester.app'
 ```
 
 ### Windows
 
-Run the `.exe` installer, then open **Clef Airy Decisions** from the Start menu.
+Run the `.exe` installer, then open **Clef Airy Decisions API Tester** from the Start menu.
 
 In the app, save your API URL and model in **Configuration**, then open **Compose a request**. For local Ollama, make sure Ollama is running first.
 
 ## Configure your API and send a request
 
-Save the API URL, pick a model, and choose no authentication, Basic credentials, or a Bearer API key. For [Jev](https://docs.typesafe.ai/api), use `https://api.typesafe.ai`, model `jev-latest`, and Bearer authentication with your TypeSafe key in the Password / API key field. In Compose a request, describe a situation and ask yes/no, choice, or score questions. You can edit the request as a form or as JSON, then read the answer in plain language or as JSON. Instructions and criteria fields also accept JSON objects and arrays.
+In **Configuration**, enter your API URL, choose a model, and select an authentication method: None, Basic, or Bearer.
 
-The default API URL is `http://localhost:11434`. Leave the username and password blank when that server is a local [Ollama](https://ollama.com) install. Models are read from `GET /api/tags`. Requests go to `/v1/systemone`.
+For [Jev](https://docs.typesafe.ai/api), use `https://api.typesafe.ai`, select `jev-latest`, and choose Bearer authentication. Enter your TypeSafe key in **Password / API key**.
 
-It works out of the box with these local Ollama models:
+In **Compose a request**, describe a situation and add yes/no, choice, or score questions. Edit the request using the form or JSON, then view the response in Easy or JSON mode. Instructions and criteria can also contain JSON objects and arrays.
+
+For local [Ollama](https://ollama.com), the default URL is `http://localhost:11434`. Choose None if your server does not require credentials. The app loads Ollama models from `GET /api/tags` and uses `GET /v1/models` for Jev and Bearer connections. Decision requests default to `/v1/systemone`.
+
+Install a decision-capable model on your Ollama server, such as:
 
 - `nimble`
 - `tev1`
 - `clef`
 - `clef-flash`
 
-![Clef Airy Decisions API Tester, with a decision request on the left and the structured response on the right.](docs/run.jpg)
+![A decision request and its response in Clef Airy.](docs/run.jpg)
+
+## Credentials and local data
+
+Settings and bookmarks stay in a local SQLite database. The desktop app encrypts saved API passwords and Bearer keys through Electron's secure storage, using macOS Keychain or Windows data protection. It saves the encrypted value in the database. If secure storage is unavailable, saving a new credential fails.
+
+The app sends credentials to your configured API to authenticate model lookups and requests. It sends request content there too. Use HTTPS for remote APIs.
+
+On first launch, each desktop installation creates a random Laravel application key in its local app-data folder. Saved API credentials use the operating system's encryption separately. The repo includes the code that generates the Laravel key. The key itself stays local: production builds remove `APP_KEY` and exclude `.key` files.
+
+macOS may ask for Keychain access when you save or use a credential. The app converts older Laravel-encrypted credentials to OS-backed encryption if it can read them. If it cannot, re-enter them in Configuration.
 
 ## Technical information
 
-The application uses [Laravel](https://laravel.com) and [NativePHP for Desktop](https://nativephp.com/docs/desktop/getting-started/introduction). The interface is built with Blade, Alpine.js, Tailwind CSS, and Vite; desktop data is stored in SQLite.
+Built with [Laravel](https://laravel.com) and [NativePHP for Desktop](https://nativephp.com/docs/desktop/getting-started/introduction), with Blade, Alpine.js, Tailwind CSS, and Vite for the interface. Desktop data is stored in SQLite.
 
 ### Development requirements
 
 - PHP 8.3 or newer
 - Composer
-- Node.js
+- Node.js 22 or newer
 - SQLite
 
 ### Set up from source
@@ -58,7 +72,9 @@ The application uses [Laravel](https://laravel.com) and [NativePHP for Desktop](
 composer run setup
 ```
 
-That installs PHP and JavaScript dependencies, copies `.env.example` to `.env` when needed, generates an application key, runs migrations, and builds the frontend.
+This installs dependencies, creates `.env` if needed, generates a development application key, runs migrations, and builds the frontend.
+
+Keep `.env` private. Browser development mode encrypts saved credentials with the Laravel key in `.env`. The desktop app uses OS-backed encryption.
 
 ### Run from source
 
@@ -68,7 +84,7 @@ In the browser:
 composer run dev
 ```
 
-As a desktop app, with Vite alongside NativePHP:
+For desktop development with Vite:
 
 ```bash
 composer native:dev
@@ -84,7 +100,7 @@ composer test
 
 ### macOS
 
-Quit Clef Airy Decisions API Tester before rebuilding. The build replaces the app bundle in `nativephp/electron/dist`; a running copy can lose files its PHP server is using.
+Quit any copy running from `nativephp/electron/dist` before rebuilding. The build replaces that bundle, including files used by its PHP server.
 
 For an Apple Silicon build:
 
@@ -98,10 +114,10 @@ For Intel Macs:
 php artisan native:build mac x64 --no-interaction
 ```
 
-Local builds without a signing identity use ad-hoc signing and are not notarized. If macOS blocks a build you created, remove its quarantine attribute before opening it:
+Without a signing identity, Mac builds use ad-hoc signing and are not notarized. If macOS blocks your local build, run:
 
 ```bash
-xattr -dr com.apple.quarantine 'nativephp/electron/dist/mac-arm64/Clef Airy Decisions.app'
+xattr -dr com.apple.quarantine 'nativephp/electron/dist/mac-arm64/Clef Airy Decisions API Tester.app'
 ```
 
 For an Intel build, use `dist/mac/` instead of `dist/mac-arm64/`. If your build has a different app name, use that name in the path.
@@ -110,17 +126,15 @@ Increment the app version in `config/nativephp.php`, or set `NATIVEPHP_APP_VERSI
 
 Production builds remove `APP_ENV` and `APP_DEBUG` from the bundled environment. The app then runs in production with debug pages off.
 
-The app stores its Laravel session key in an owner-only file in its application-data folder. Saved API passwords use OS-backed encryption (Keychain on macOS), independently of that file. Normal startup and viewing configuration do not read Keychain-saved passwords; saving or sending a password may request Keychain access. Older locally encrypted passwords are migrated to OS-backed storage when readable.
-
 ### Signed releases
 
-For distribution, configure a Developer ID Application certificate and the `NATIVEPHP_APPLE_ID`, `NATIVEPHP_APPLE_ID_PASS` (app-specific password), and `NATIVEPHP_APPLE_TEAM_ID` variables in your local, ignored `.env`. See the [NativePHP build guide](https://nativephp.com/docs/desktop/2/publishing/building) for setup details.
+For a signed and notarized Mac build, configure a Developer ID Application certificate. Set `NATIVEPHP_APPLE_ID`, `NATIVEPHP_APPLE_ID_PASS` (an app-specific password), and `NATIVEPHP_APPLE_TEAM_ID` in your local, ignored `.env`. See the [NativePHP build guide](https://nativephp.com/docs/desktop/2/publishing/building) for setup details.
 
 ```bash
 NATIVEPHP_RELEASE=true php artisan native:build mac arm64 --no-interaction
 ```
 
-Release mode requires signing and notarization credentials and stops the build if notarization fails. Artifacts are written to `nativephp/electron/dist`. Keep the bundle identifier stable between releases.
+This enables release mode, which requires signing and notarization credentials and fails if notarization fails. Installers are written to `nativephp/electron/dist`. Keep the bundle identifier the same between releases.
 
 ### Windows
 
@@ -134,7 +148,9 @@ The installer is written to `nativephp/electron/dist` as `*-setup.exe`. Windows 
 
 ## Upgrading NativePHP
 
-This repo publishes `nativephp/electron` so the app can keep its signing rules, local encryption key, and macOS privacy strings. After `composer update` replaces `nativephp/desktop`, put the new shell in place and reapply those changes:
+The customized Electron source lives in `nativephp/electron`. It includes signing configuration and the code that generates each installation's Laravel key. It does not include signing certificates, private keys, or local credentials.
+
+After updating `nativephp/desktop`, refresh the Electron source:
 
 ```bash
 php artisan electron:republish
