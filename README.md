@@ -1,6 +1,6 @@
 # Clef Airy Decisions API Tester
 
-A desktop app for sending requests to Ollama System One and Jev decision APIs.
+A desktop app for sending requests to Ollama System One, Jev, and Cloudflare Workers AI decision APIs.
 
 ## Install and run
 
@@ -28,11 +28,21 @@ In the app, save your API URL and model in **Configuration**, then open **Compos
 
 ## Configure your API and send a request
 
-In **Configuration**, enter your API URL, choose a model, and select an authentication method: None, Basic, or Bearer.
+In **Configuration**, enter your API URL, choose a model, and select an authentication method: None, Basic, Bearer, or Cloudflare Workers AI. Presets for Local Ollama, TypeSafe AI, and Cloudflare Workers AI fill in the URL and authentication for you.
 
 For [Jev](https://docs.typesafe.ai/api), use `https://api.typesafe.ai`, select `jev-latest`, and choose Bearer authentication. Enter your TypeSafe key in **Password / API key**.
 
 In **Compose a request**, describe a situation and add yes/no, choice, or score questions. Edit the request using the form or JSON, then view the response in Easy or JSON mode. Instructions and criteria can also contain JSON objects and arrays.
+
+Below each response, the app shows token usage, request duration, and the number of questions sent, each with an icon. You can also download the request and response as JSON.
+
+In **Configuration**, set the yes/no decision threshold (default 50%). It changes the displayed yes/no result only, not the API request or confidence.
+
+For [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/), choose the Cloudflare preset, enter your Account ID and API token, and select one of the supported models:
+
+- `@cf/cloudflare/clef-flash`
+- `@cf/cloudflare/clef`
+- `typesafe/jev`
 
 For local [Ollama](https://ollama.com), the default URL is `http://localhost:11434`. Choose None if your server does not require credentials. The app loads Ollama models from `GET /api/tags` and uses `GET /v1/models` for Jev and Bearer connections. Decision requests default to `/v1/systemone`.
 
