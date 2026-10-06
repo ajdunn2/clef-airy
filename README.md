@@ -150,13 +150,15 @@ The installer is written to `nativephp/electron/dist` as `*-setup.exe`. Windows 
 
 The customized Electron source lives in `nativephp/electron`. It includes signing configuration and the code that generates each installation's Laravel key. It does not include signing certificates, private keys, or local credentials.
 
-After updating `nativephp/desktop`, refresh the Electron source:
+After updating `nativephp/desktop`, manually compare `vendor/nativephp/desktop/resources/electron` with `nativephp/electron` and merge the relevant upstream changes. Keep the app's signing configuration, per-installation Laravel key, runtime cache paths, plugin build scripts, and Electron 42 dependency versions. Do not overwrite the customized shell with `native:install --publish`.
 
 ```bash
-php artisan electron:republish
+cd nativephp/electron
+npm install
+npm run plugin:test
 ```
 
-The command copies the installed Electron project, applies `nativephp/electron-customizations.patch`, restores the package name and plugin build scripts, and copies `public/icon.png`, `public/icon.icns`, and `public/icon.ico` into `nativephp/electron/build`. Pass `--install` when the upgrade changes Electron's npm dependencies. Update the patch when you change those Electron files.
+Commit changes to the Electron source and its npm lockfile together, then build and launch the app to verify the upgrade. Normal builds use the committed Electron source directly.
 
 ## License
 
