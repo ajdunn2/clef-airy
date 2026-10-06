@@ -376,7 +376,8 @@ export function formBodyError(body) {
     }
 
     if (Object.keys(body).some((key) => ! ['state', 'questions', 'model'].includes(key))
-        || (Object.hasOwn(body, 'state') && (body.state === null || ! content(body.state)))) {
+        || (Object.hasOwn(body, 'state') && (body.state === null || ! content(body.state)))
+        || (Object.hasOwn(body, 'model') && (typeof body.model !== 'string' || body.model.trim() === ''))) {
         return message;
     }
 

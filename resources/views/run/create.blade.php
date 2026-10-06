@@ -565,8 +565,11 @@
 
             const model = form.querySelector('#model');
 
-            if (body.model && model && ! [...model.options].some((option) => option.value === body.model)) {
-                return 'Choose this model in Configuration first, or keep using the JSON view.';
+            if (model && typeof body.model === 'string' && body.model.trim() !== '') {
+                if (! [...model.options].some((option) => option.value === body.model)) {
+                    model.add(new Option(body.model, body.model));
+                }
+                model.value = body.model;
             }
 
             const list = form.querySelector('[data-questions]');
@@ -599,9 +602,6 @@
                 state.value = '';
             }
 
-            if (model && body.model && [...model.options].some((option) => option.value === body.model)) {
-                model.value = body.model;
-            }
 
             renumberQuestions(list);
 

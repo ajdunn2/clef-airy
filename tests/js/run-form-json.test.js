@@ -95,6 +95,9 @@ test('switching to the form accepts structured content and protects unsupported 
     const body = { state: {}, questions: { coverage: { type: 'noul', instructions: { question: 'Is help needed?' }, criteria: { true: ['Yes'] } } } };
 
     assert.equal(formBodyError(body), null);
+    assert.equal(formBodyError({ ...body, model: 'custom-model' }), null);
+    assert.match(formBodyError({ ...body, model: '' }), /cannot preserve/);
+    assert.match(formBodyError({ ...body, model: 123 }), /cannot preserve/);
     assert.match(formBodyError({ ...body, keep_alive: '5m' }), /cannot preserve/);
     assert.match(formBodyError({ ...body, questions: null }), /questions object/);
     assert.match(formBodyError({ ...body, questions: { coverage: { type: 'unknown', instructions: 'Help?' } } }), /cannot preserve/);
