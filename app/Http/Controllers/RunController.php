@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\UnreadablePasswordException;
 use App\Models\SavedCall;
 use App\Models\SystemOneSetting;
 use App\Services\SystemOneClient;
@@ -304,6 +305,10 @@ class RunController extends Controller
                 $body,
                 $model,
             );
+        } catch (UnreadablePasswordException $exception) {
+            throw ValidationException::withMessages([
+                'password' => $exception->getMessage(),
+            ]);
         } catch (InvalidArgumentException $exception) {
             throw ValidationException::withMessages([
                 'path' => $exception->getMessage(),

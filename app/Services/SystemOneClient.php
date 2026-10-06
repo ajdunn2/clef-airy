@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\UnreadablePasswordException;
 use App\Models\SystemOneSetting;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
@@ -52,7 +53,7 @@ class SystemOneClient
     public function send(SystemOneSetting $setting, string $method, string $path, ?string $body, ?string $model = null): SystemOneResponse
     {
         if ($setting->auth_type !== 'none' && $setting->passwordNeedsReset()) {
-            throw new InvalidArgumentException('Re-enter your API password in Configuration before sending a request.');
+            throw new UnreadablePasswordException;
         }
 
         $url = $this->endpoint($setting->base_url, $path);

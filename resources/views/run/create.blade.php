@@ -239,6 +239,9 @@
                 <button type="button" x-on:click="copyResponse" :disabled="!hasResponse" :class="copied === 'response' ? 'border-accent text-accent' : 'border-line'" class="inline-flex min-w-30 items-center justify-center gap-1 rounded-lg border px-3 py-1.5 text-[13px] font-medium transition-colors duration-300 disabled:opacity-40"><x-lucide-copy class="size-4 shrink-0" aria-hidden="true" /><span x-text="copied === 'response' ? 'Copied' : 'Copy response'">Copy response</span></button>
             </div>
         </div>
+        @error('password')
+            <p role="alert" class="mb-3 whitespace-pre-line text-[13px] text-red-700">{{ $message }}</p>
+        @enderror
         <p x-cloak x-show="error" x-text="error" role="alert" class="mb-3 whitespace-pre-line text-[13px] text-red-700"></p>
         <div class="grid gap-3">
             <div x-ref="response" class="min-w-0">

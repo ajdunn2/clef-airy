@@ -130,8 +130,9 @@ class DesktopSecurityTest extends TestCase
         $this->put('/configuration', ['api_url' => 'https://api.example.test']);
         DB::table('system_one_settings')->update(['password' => 'unreadable-legacy-ciphertext']);
 
-        $this->post('/run', ['method' => 'GET', 'path' => '/events'])
-            ->assertSessionHasErrors(['path' => 'Re-enter your API password in Configuration before sending a request.']);
+        $this->followingRedirects()->from('/run')->post('/run', ['method' => 'GET', 'path' => '/events'])
+            ->assertOk()
+            ->assertSee('Re-enter your API password in Configuration before sending a request.');
 
         Http::assertNothingSent();
     }

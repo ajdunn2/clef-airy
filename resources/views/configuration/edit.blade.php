@@ -91,7 +91,7 @@
             @if ($passwordNeedsReset)
                 <p class="text-[13px] text-muted">Enter your API password to replace the unreadable saved value.</p>
             @elseif ($hasPassword)
-                <p class="text-[13px] text-muted">A password is saved. Leave this blank to keep it.</p>
+                <p class="text-[13px] text-muted">A password is saved. Leave this blank to keep it. If requests report an unreadable password, enter it again here.</p>
             @endif
             <p x-show="authType === 'bearer'" class="text-[13px] text-muted">Note: For Jev, enter your TypeSafe key here. Use <small><code>https://api.typesafe.ai</code></small> with model jev-latest.</p>
             @if ($hasPassword)
