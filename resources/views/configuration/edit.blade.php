@@ -17,93 +17,106 @@
         @csrf
         @method('PUT')
 
-        <div class="grid gap-1.5">
-            <label for="api_url" class="text-[13px] font-medium">API URL</label>
-            <input
-                id="api_url"
-                name="api_url"
-                type="url"
-                value="{{ old('api_url', $apiUrl ?: 'http://localhost:11434') }}"
-                required
-                class="rounded-lg border border-line bg-field px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25"
-                placeholder="http://localhost:11434"
-            >
-            @error('api_url')
-                <p class="text-[13px] text-red-700">{{ $message }}</p>
-            @enderror
-        </div>
+        <section class="grid gap-2 rounded-lg border border-line  p-4" aria-labelledby="threshold-heading">
 
-        <div class="grid gap-1.5">
-            <label for="model" class="text-[13px] font-medium">Model</label>
-            <select id="model" name="model" class="rounded-lg border border-line bg-field px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">
+            <div class="grid gap-1.5">
+                <label for="api_url" class="text-[13px] font-medium">API URL</label>
+                <input
+                    id="api_url"
+                    name="api_url"
+                    type="url"
+                    value="{{ old('api_url', $apiUrl ?: 'http://localhost:11434') }}"
+                    required
+                    class="rounded-lg border border-line bg-field px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25"
+                    placeholder="http://localhost:11434"
+                >
+                @error('api_url')
+                    <p class="text-[13px] text-red-700">{{ $message }}</p>
+                @enderror
+            </div>
+
+            <div class="grid gap-1.5">
+                <label for="model" class="text-[13px] font-medium">Model</label>
+                <select id="model" name="model" class="rounded-lg border border-line bg-field px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">
+                    @if ($modelError)
+                        <option value="" selected disabled>Models unavailable</option>
+                    @endif
+                    @foreach ($models as $name)
+                        <option value="{{ $name }}" @selected(old('model', $model) === $name)>{{ $name }}</option>
+                    @endforeach
+                </select>
                 @if ($modelError)
-                    <option value="" selected disabled>Models unavailable</option>
+                    <p class="whitespace-pre-line text-[13px] text-red-700" role="alert">{{ $modelError }}</p>
                 @endif
-                @foreach ($models as $name)
-                    <option value="{{ $name }}" @selected(old('model', $model) === $name)>{{ $name }}</option>
-                @endforeach
-            </select>
-            @if ($modelError)
-                <p class="whitespace-pre-line text-[13px] text-red-700" role="alert">{{ $modelError }}</p>
-            @endif
-            @error('model')
-                <p class="text-[13px] text-red-700">{{ $message }}</p>
-            @enderror
-        </div>
+                @error('model')
+                    <p class="text-[13px] text-red-700">{{ $message }}</p>
+                @enderror
+            </div>
 
-        <div class="grid gap-1.5">
-            <label for="auth_type" class="text-[13px] font-medium">Authentication</label>
-            <select id="auth_type" name="auth_type" x-model="authType" class="rounded-lg border border-line bg-field px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">
-                @foreach (['none' => 'None (e.g. local Ollama)', 'basic' => 'Basic (e.g. protected API proxy)', 'bearer' => 'Bearer API key (e.g. Jev / TypeSafe)'] as $value => $label)
-                    <option value="{{ $value }}" @selected(old('auth_type', $authType) === $value)>{{ $label }}</option>
-                @endforeach
-            </select>
-            @error('auth_type')
-                <p class="text-[13px] text-red-700">{{ $message }}</p>
-            @enderror
-        </div>
+            <div class="grid gap-1.5">
+                <label for="auth_type" class="text-[13px] font-medium">Authentication</label>
+                <select id="auth_type" name="auth_type" x-model="authType" class="rounded-lg border border-line bg-field px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">
+                    @foreach (['none' => 'None (e.g. local Ollama)', 'basic' => 'Basic (e.g. protected API proxy)', 'bearer' => 'Bearer API key (e.g. Jev / TypeSafe)'] as $value => $label)
+                        <option value="{{ $value }}" @selected(old('auth_type', $authType) === $value)>{{ $label }}</option>
+                    @endforeach
+                </select>
+                @error('auth_type')
+                    <p class="text-[13px] text-red-700">{{ $message }}</p>
+                @enderror
+            </div>
 
-        <div x-cloak x-show="authType === 'basic'" class="grid gap-1.5">
-            <label for="username" class="text-[13px] font-medium">Username (optional)</label>
-            <input
-                id="username"
-                name="username"
-                type="text"
-                value="{{ old('username', $username) }}"
-                autocomplete="off"
-                class="rounded-lg border border-line bg-field px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25"
-            >
-            @error('username')
-                <p class="text-[13px] text-red-700">{{ $message }}</p>
-            @enderror
-        </div>
+            <div x-cloak x-show="authType === 'basic'" class="grid gap-1.5">
+                <label for="username" class="text-[13px] font-medium">Username (optional)</label>
+                <input
+                    id="username"
+                    name="username"
+                    type="text"
+                    value="{{ old('username', $username) }}"
+                    autocomplete="off"
+                    class="rounded-lg border border-line bg-field px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25"
+                >
+                @error('username')
+                    <p class="text-[13px] text-red-700">{{ $message }}</p>
+                @enderror
+            </div>
 
-        <div x-cloak x-show="authType !== 'none'" class="grid gap-1.5">
-            <label for="password" x-text="authType === 'bearer' ? 'API key (optional)' : 'Password (optional)'" class="text-[13px] font-medium">Password / API key (optional)</label>
-            <input
-                id="password"
-                name="password"
-                type="password"
-                autocomplete="new-password"
-                @if ($hasPassword) placeholder="********" @endif
-                class="rounded-lg border border-line bg-field px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25"
-            >
-            @if ($passwordNeedsReset)
-                <p class="text-[13px] text-muted">Enter your API password to replace the unreadable saved value.</p>
-            @elseif ($hasPassword)
-                <p class="text-[13px] text-muted">A password is saved. Leave this blank to keep it. If requests report an unreadable password, enter it again here.</p>
-            @endif
-            <p x-show="authType === 'bearer'" class="text-[13px] text-muted">Note: For Jev, enter your TypeSafe key here. Use <small><code>https://api.typesafe.ai</code></small> with model jev-latest.</p>
-            @if ($hasPassword)
-                <label class="flex items-center gap-2 text-[13px]">
-                    <input type="checkbox" name="remove_password" value="1" @checked(old('remove_password'))>
-                    Remove saved password (a new password takes precedence)
-                </label>
-            @endif
-            @error('password')
+            <div x-cloak x-show="authType !== 'none'" class="grid gap-1.5">
+                <label for="password" x-text="authType === 'bearer' ? 'API key (optional)' : 'Password (optional)'" class="text-[13px] font-medium">Password / API key (optional)</label>
+                <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    autocomplete="new-password"
+                    @if ($hasPassword) placeholder="********" @endif
+                    class="rounded-lg border border-line bg-field px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25"
+                >
+                @if ($passwordNeedsReset)
+                    <p class="text-[13px] text-muted">Enter your API password to replace the unreadable saved value.</p>
+                @elseif ($hasPassword)
+                    <p class="text-[13px] text-muted">A password is saved. Leave this blank to keep it. If requests report an unreadable password, enter it again here.</p>
+                @endif
+                <p x-show="authType === 'bearer'" class="text-[13px] text-muted">Note: For Jev, enter your TypeSafe key here. Use <small><code>https://api.typesafe.ai</code></small> with model jev-latest.</p>
+                @if ($hasPassword)
+                    <label class="flex items-center gap-2 text-[13px]">
+                        <input type="checkbox" name="remove_password" value="1" @checked(old('remove_password'))>
+                        Remove saved password (a new password takes precedence)
+                    </label>
+                @endif
+                @error('password')
+                    <p class="text-[13px] text-red-700">{{ $message }}</p>
+                @enderror
+            </div>
+
+        </section>
+
+        <section class="grid gap-2 rounded-lg border border-line  p-4" aria-labelledby="threshold-heading">
+            <h2 id="threshold-heading" class="text-sm font-semibold">Yes/No decision threshold</h2>
+            <input id="yes_threshold" name="yes_threshold" type="number" min="0" max="100" step="1" required value="{{ old('yes_threshold', $yesThreshold) }}" aria-describedby="threshold-help" class="w-24 rounded-lg border border-line bg-field px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">
+            <p id="threshold-help" class="text-[13px] text-muted">Applies to all yes/no results. <strong>Default: 50%</strong>.<br>This changes the displayed decision, not the API request or confidence.</p>
+            @error('yes_threshold')
                 <p class="text-[13px] text-red-700">{{ $message }}</p>
             @enderror
-        </div>
+        </section>
 
         <div class="flex justify-end">
             <button type="submit" class="rounded-lg bg-accent px-3.5 py-1.5 text-[13px] font-medium text-white hover:bg-accent/90">Save</button>

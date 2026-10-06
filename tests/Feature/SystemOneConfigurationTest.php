@@ -10,6 +10,26 @@ use Tests\TestCase;
 
 class SystemOneConfigurationTest extends TestCase
 {
+    public function test_yes_threshold_defaults_to_fifty_and_can_be_saved(): void
+    {
+        $this->put('/configuration', ['api_url' => 'http://api.example.test'])->assertRedirect();
+        $this->assertSame(50, SystemOneSetting::current()->yes_threshold);
+
+        $this->put('/configuration', ['api_url' => 'http://api.example.test', 'yes_threshold' => 80])->assertRedirect();
+        $this->get(route('configuration.edit'))->assertOk()->assertSee('value="80"', false);
+        $this->put('/configuration', ['api_url' => 'http://api.example.test'])->assertRedirect();
+        $this->assertSame(80, SystemOneSetting::current()->yes_threshold);
+    }
+
+    public function test_yes_threshold_rejects_invalid_percentages(): void
+    {
+        foreach ([-1, 101, 50.5, '', 'invalid'] as $threshold) {
+            $this->put('/configuration', ['api_url' => 'http://api.example.test', 'yes_threshold' => $threshold])
+                ->assertSessionHasErrors('yes_threshold');
+        }
+        $this->assertDatabaseCount('system_one_settings', 0);
+    }
+
     public function test_unreachable_ollama_shows_an_error_without_clef_fallback_choices(): void
     {
         Http::preventStrayRequests();

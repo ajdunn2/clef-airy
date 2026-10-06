@@ -195,16 +195,97 @@ class SystemOnePayloadTest extends TestCase
 
         $this->assertSame('clef-flash:latest', $view['model']);
         $this->assertSame('Yes', $view['answers'][0]['headline']);
-        $this->assertSame('95% yes', $view['answers'][0]['detail']);
+        $this->assertSame('95% yes (threshold 50%)', $view['answers'][0]['detail']);
         $this->assertSame('technical', $view['answers'][1]['headline']);
         $this->assertSame('76%', $view['answers'][1]['confidence']);
         $this->assertTrue($view['answers'][1]['rows'][1]['selected']);
         $this->assertSame(94, $view['answers'][1]['rows'][1]['share']);
         $this->assertSame(76, $view['answers'][2]['rows'][1]['share']);
-        $this->assertSame('Major toward Critical', $view['answers'][2]['headline']);
-        $this->assertSame('2.7', $view['answers'][2]['detail']);
+        $this->assertSame('Most likely: Critical', $view['answers'][2]['headline']);
+        $this->assertSame('Weighted score: 2.7', $view['answers'][2]['detail']);
+        $this->assertTrue($view['answers'][2]['rows'][1]['selected']);
         $this->assertSame('346 tokens in', $view['usage']);
         $this->assertNull($view['error']);
+    }
+
+    public function test_score_results_separate_the_most_likely_level_from_the_weighted_score(): void
+    {
+        $view = (new SystemOnePayload)->present(json_encode([
+            'answers' => ['severity' => [
+                'type' => 'score',
+                'score' => 1.55,
+                'legend' => ['None', 'Minor', 'Major', 'Critical'],
+                'probabilities' => [0.4, 0.1, 0.05, 0.45],
+            ]],
+        ]));
+
+        $this->assertSame('Most likely: Critical', $view['answers'][0]['headline']);
+        $this->assertSame('Weighted score: 1.6', $view['answers'][0]['detail']);
+        $this->assertTrue($view['answers'][0]['rows'][3]['selected']);
+        $this->assertFalse($view['answers'][0]['rows'][2]['selected']);
+    }
+
+    public function test_score_results_without_probabilities_do_not_claim_a_most_likely_level(): void
+    {
+        $view = (new SystemOnePayload)->present('{"answers":{"severity":{"type":"score","score":1.5,"legend":["Low","Medium","High"]}}}');
+
+        $this->assertSame('Score', $view['answers'][0]['headline']);
+        $this->assertSame('Weighted score: 1.5', $view['answers'][0]['detail']);
+        $this->assertSame([], $view['answers'][0]['rows']);
+    }
+
+    public function test_yes_no_decisions_keep_the_unrounded_probability_for_thresholds(): void
+    {
+        $view = (new SystemOnePayload)->present('{"answers":{"urgent":{"type":"noul","noul":0.4996}}}');
+
+        $this->assertSame('No', $view['answers'][0]['headline']);
+
+        $payload = new SystemOnePayload;
+        foreach ([[0.79, 0.8, 'No'], [0.8, 0.8, 'Yes'], [0, 0, 'Yes'], [1, 1, 'Yes']] as [$probability, $threshold, $expected]) {
+            $view = $payload->present(json_encode(['answers' => ['urgent' => ['type' => 'noul', 'noul' => $probability]]]), $threshold);
+            $this->assertSame($expected, $view['answers'][0]['headline']);
+        }
+    }
+
+    public function test_it_formats_token_usage_with_input_and_output_tokens(): void
+    {
+        $payload = new SystemOnePayload;
+
+        $both = $payload->present(json_encode([
+            'answers' => ['q' => ['type' => 'noul', 'noul' => 1.0]],
+            'usage' => ['input_tokens' => 1250, 'output_tokens' => 45],
+        ]));
+        $this->assertSame('1,250 tokens in · 45 tokens out', $both['usage']);
+
+        $zeroOutput = $payload->present(json_encode([
+            'answers' => ['q' => ['type' => 'noul', 'noul' => 1.0]],
+            'usage' => ['input_tokens' => 500, 'output_tokens' => 0],
+        ]));
+        $this->assertSame('500 tokens in', $zeroOutput['usage']);
+
+        $onlyInput = $payload->present(json_encode([
+            'answers' => ['q' => ['type' => 'noul', 'noul' => 1.0]],
+            'usage' => ['input_tokens' => 500],
+        ]));
+        $this->assertSame('500 tokens in', $onlyInput['usage']);
+
+        $onlyOutput = $payload->present(json_encode([
+            'answers' => ['q' => ['type' => 'noul', 'noul' => 1.0]],
+            'usage' => ['output_tokens' => 80],
+        ]));
+        $this->assertSame('80 tokens out', $onlyOutput['usage']);
+    }
+
+    public function test_it_counts_questions_sent_in_a_payload(): void
+    {
+        $payload = new SystemOnePayload;
+
+        $this->assertNull($payload->questionCount(null));
+        $this->assertNull($payload->questionCount(''));
+        $this->assertNull($payload->questionCount('invalid json'));
+        $this->assertNull($payload->questionCount('{"state": "only state"}'));
+        $this->assertSame(0, $payload->questionCount('{"questions": {}}'));
+        $this->assertSame(3, $payload->questionCount('{"state": "test", "questions": {"q1": {}, "q2": {}, "q3": {}}}'));
     }
 
     public function test_it_presents_api_errors_without_answers(): void

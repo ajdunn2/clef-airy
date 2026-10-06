@@ -51,7 +51,7 @@ class SavedCallController extends Controller
         ];
 
         if ($form) {
-            $rules['state'] = ['nullable', 'string', 'max:100000'];
+            $rules['state'] = ['nullable', 'string', 'max:150000'];
             $rules['questions'] = ['nullable', 'array', 'max:64'];
             $rules['questions.*.name'] = ['nullable', 'string', 'max:100'];
             $rules['questions.*.type'] = ['nullable', 'string', 'max:20'];
@@ -64,7 +64,7 @@ class SavedCallController extends Controller
             $rules['questions.*.levels'] = ['nullable', 'array', 'max:32'];
             $rules['questions.*.levels.*'] = ['nullable', 'string', 'max:200'];
         } else {
-            $rules['body'] = ['nullable', 'string', 'max:100000'];
+            $rules['body'] = ['nullable', 'string', 'max:150000'];
         }
 
         $validated = $request->validate($rules, [

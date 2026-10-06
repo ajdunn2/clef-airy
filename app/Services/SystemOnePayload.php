@@ -82,7 +82,7 @@ class SystemOnePayload
     /**
      * @return array{model: ?string, answers: list<array<string, mixed>>, usage: ?string, error: ?string}|null
      */
-    public function present(string $body): ?array
+    public function present(string $body, float $yesThreshold = 0.5): ?array
     {
         if (! json_validate($body)) {
             return null;
@@ -114,7 +114,7 @@ class SystemOnePayload
                 continue;
             }
 
-            $answers[] = $this->answer((string) $name, $answer);
+            $answers[] = $this->answer((string) $name, $answer, $yesThreshold);
         }
 
         if ($answers === []) {
@@ -122,9 +122,20 @@ class SystemOnePayload
         }
 
         $usage = null;
+        $inputTokens = $decoded['usage']['input_tokens'] ?? null;
+        $outputTokens = $decoded['usage']['output_tokens'] ?? null;
+        $parts = [];
 
-        if (isset($decoded['usage']['input_tokens'])) {
-            $usage = $decoded['usage']['input_tokens'].' tokens in';
+        if (is_numeric($inputTokens)) {
+            $parts[] = number_format((int) $inputTokens).' tokens in';
+        }
+
+        if (is_numeric($outputTokens) && (int) $outputTokens > 0) {
+            $parts[] = number_format((int) $outputTokens).' tokens out';
+        }
+
+        if ($parts !== []) {
+            $usage = implode(' · ', $parts);
         }
 
         return [
@@ -298,7 +309,7 @@ class SystemOnePayload
      * @param  array<string, mixed>  $answer
      * @return array{name: string, type: string, headline: string, detail: ?string, confidence: ?string, rows: list<array{label: string, value: string, share: int, selected: bool}>}
      */
-    private function answer(string $name, array $answer): array
+    private function answer(string $name, array $answer, float $yesThreshold): array
     {
         $type = (string) ($answer['type'] ?? '');
         $rows = [];
@@ -307,8 +318,8 @@ class SystemOnePayload
 
         if ($type === 'noul' && isset($answer['noul']) && is_numeric($answer['noul'])) {
             $noul = (float) $answer['noul'];
-            $headline = $noul >= 0.5 ? 'Yes' : 'No';
-            $detail = $this->percent($noul).' yes';
+            $headline = $noul >= $yesThreshold ? 'Yes' : 'No';
+            $detail = $this->percent($noul).' yes (threshold '.$this->percent($yesThreshold).')';
         }
 
         if ($type === 'choice') {
@@ -319,8 +330,7 @@ class SystemOnePayload
         if ($type === 'score' && isset($answer['score']) && is_numeric($answer['score'])) {
             $score = (float) $answer['score'];
             $legend = is_array($answer['legend'] ?? null) ? $answer['legend'] : [];
-            $headline = $this->scoreHeadline($score, $legend);
-            $detail = $this->number($score);
+            $detail = 'Weighted score: '.$this->number($score);
             $rows = $this->probabilityRows($answer['probabilities'] ?? [], null);
             $rows = array_map(function (array $row) use ($legend): array {
                 $label = $legend[$row['label']] ?? $row['label'];
@@ -332,6 +342,8 @@ class SystemOnePayload
                     'selected' => $row['selected'],
                 ];
             }, $rows);
+            $selected = array_search(true, array_column($rows, 'selected'), true);
+            $headline = $selected === false ? 'Score' : 'Most likely: '.$rows[$selected]['label'];
         }
 
         $confidence = isset($answer['confidence']) && is_numeric($answer['confidence'])
@@ -346,27 +358,6 @@ class SystemOnePayload
             'confidence' => $confidence,
             'rows' => $rows,
         ];
-    }
-
-    /**
-     * @param  array<mixed, mixed>  $legend
-     */
-    private function scoreHeadline(float $score, array $legend): string
-    {
-        $low = (int) floor($score);
-        $high = (int) ceil($score);
-        $lowLabel = isset($legend[(string) $low]) ? (string) $legend[(string) $low] : null;
-        $highLabel = isset($legend[(string) $high]) ? (string) $legend[(string) $high] : null;
-
-        if ($lowLabel === null) {
-            return $this->number($score);
-        }
-
-        if ($low === $high || $highLabel === null || $lowLabel === $highLabel) {
-            return $lowLabel;
-        }
-
-        return $lowLabel.' toward '.$highLabel;
     }
 
     /**
@@ -416,5 +407,20 @@ class SystemOnePayload
         $rounded = round($value, 1);
 
         return rtrim(rtrim(number_format($rounded, 1, '.', ''), '0'), '.');
+    }
+
+    public function questionCount(?string $body): ?int
+    {
+        if (! filled($body) || ! json_validate($body)) {
+            return null;
+        }
+
+        $decoded = json_decode($body, true);
+
+        if (! is_array($decoded) || ! isset($decoded['questions']) || ! is_array($decoded['questions'])) {
+            return null;
+        }
+
+        return count($decoded['questions']);
     }
 }

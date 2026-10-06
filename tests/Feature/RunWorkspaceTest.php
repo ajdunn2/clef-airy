@@ -241,6 +241,38 @@ class RunWorkspaceTest extends TestCase
         $this->assertStringContainsString('invalid character &#039;}&#039; looking for beginning of object key string', $response->json('html'));
     }
 
+    public function test_successful_run_renders_duration_question_count_and_token_usage(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['http://api.example.test/*' => Http::response([
+            'model' => 'clef-flash',
+            'answers' => [
+                'urgent' => ['type' => 'noul', 'noul' => 0.9],
+            ],
+            'usage' => ['input_tokens' => 450, 'output_tokens' => 12],
+        ])]);
+        $this->put('/configuration', ['api_url' => 'http://api.example.test']);
+
+        $response = $this->postJson('/run', [
+            'method' => 'POST',
+            'path' => '/v1/systemone',
+            'body_mode' => 'form',
+            'state' => 'Support needed.',
+            'questions' => [
+                ['name' => 'urgent', 'type' => 'noul', 'instructions' => 'Is this urgent?'],
+            ],
+        ]);
+
+        $response->assertOk();
+        $html = $response->json('html');
+        $this->assertStringContainsString('200', $html);
+        $this->assertStringContainsString('1 question sent', $html);
+        $this->assertMatchesRegularExpression('/\b\d+(\.\d+)?\s*(ms|s)\b/', $html);
+        $this->assertStringContainsString('450 tokens in · 12 tokens out', $html);
+        $this->assertMatchesRegularExpression('/result_view"[^>]*value="form"[\s\S]*?<svg\b[\s\S]*?Easy/', $html);
+        $this->assertMatchesRegularExpression('/result_view"[^>]*value="json"[\s\S]*?<svg\b[\s\S]*?JSON/', $html);
+    }
+
     public function test_download_returns_the_request_and_response_json(): void
     {
         Http::preventStrayRequests();
@@ -365,5 +397,20 @@ class RunWorkspaceTest extends TestCase
             'request' => '{"state":"Hello"}',
             'response' => '{"ok":true}',
         ])->assertServerError()->assertJsonPath('message', 'The save dialog could not be opened.');
+    }
+
+    public function test_saved_threshold_is_used_for_yes_no_results(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['http://api.example.test/*' => Http::response([
+            'answers' => ['urgent' => ['type' => 'noul', 'noul' => 0.7]],
+        ])]);
+        $this->put('/configuration', ['api_url' => 'http://api.example.test', 'yes_threshold' => 80]);
+        $response = $this->postJson('/run', ['method' => 'POST', 'path' => '/v1/systemone', 'body' => '{"state":"Hello"}']);
+        $response->assertOk();
+        $this->assertStringContainsString('>No</p>', $response->json('html'));
+        $this->assertStringContainsString('70% yes (threshold 80%)', $response->json('html'));
+        $this->post('/run', ['method' => 'POST', 'path' => '/v1/systemone', 'body' => '{"state":"Hello"}'])->assertRedirect();
+        $this->get('/run')->assertOk()->assertSee('70% yes (threshold 80%)');
     }
 }

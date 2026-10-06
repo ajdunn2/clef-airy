@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\ValidationException;
 
-#[Fillable(['base_url', 'username', 'password', 'model', 'auth_type'])]
+#[Fillable(['base_url', 'username', 'password', 'model', 'auth_type', 'yes_threshold'])]
 #[Hidden(['password'])]
 class SystemOneSetting extends Model
 {

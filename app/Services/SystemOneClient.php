@@ -72,13 +72,18 @@ class SystemOneClient
             $pending = $pending->withBody($body, $contentType);
         }
 
+        $startedAt = microtime(true);
+
         try {
             $response = $pending->send(strtoupper($method), $url);
+            $duration = microtime(true) - $startedAt;
         } catch (ConnectionException $exception) {
-            return new SystemOneResponse($url, null, $exception->getMessage());
+            $duration = microtime(true) - $startedAt;
+
+            return new SystemOneResponse($url, null, $exception->getMessage(), $duration);
         }
 
-        return new SystemOneResponse($url, $response->status(), $this->limit($response->body()));
+        return new SystemOneResponse($url, $response->status(), $this->limit($response->body()), $duration);
     }
 
     /**
@@ -252,7 +257,7 @@ class SystemOneClient
 
     private function limit(string $body): string
     {
-        $limit = 100_000;
+        $limit = 150_000;
 
         if (mb_strlen($body) <= $limit) {
             return $body;

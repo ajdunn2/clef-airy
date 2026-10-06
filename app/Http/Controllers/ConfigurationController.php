@@ -22,6 +22,7 @@ class ConfigurationController extends Controller
         return view('configuration.edit', [
             'apiUrl' => $setting?->base_url,
             'username' => $setting?->username,
+            'yesThreshold' => $setting?->yes_threshold ?? 50,
             'authType' => $setting?->auth_type ?? 'basic',
             'hasPassword' => filled($setting?->getRawOriginal('password')),
             'passwordNeedsReset' => $setting !== null
@@ -60,12 +61,14 @@ class ConfigurationController extends Controller
             'password' => ['nullable', 'string', 'max:2000'],
             'remove_password' => ['sometimes', 'boolean'],
             'model' => ['nullable', 'string', 'max:255'],
+            'yes_threshold' => ['sometimes', 'required', 'integer', 'between:0,100'],
         ], [
             'api_url.required' => 'Enter the API URL.',
             'api_url.url' => 'Enter an http or https API URL.',
         ]);
 
         $setting ??= new SystemOneSetting;
+        $setting->yes_threshold = $validated['yes_threshold'] ?? $setting->yes_threshold ?? 50;
         $setting->base_url = $validated['api_url'];
         $setting->username = $validated['username'] ?? '';
         $setting->auth_type = $validated['auth_type'] ?? $setting->auth_type ?? 'basic';

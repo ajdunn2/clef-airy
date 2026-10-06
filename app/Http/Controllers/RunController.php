@@ -175,7 +175,7 @@ class RunController extends Controller
         $result = session('result');
 
         if (is_array($result) && is_string($result['body'] ?? null)) {
-            $result['decision'] = $payload->present($result['body']);
+            $result['decision'] = $payload->present($result['body'], ($setting?->yes_threshold ?? 50) / 100);
             $result['pretty'] = $payload->pretty($result['body']);
         }
 
@@ -254,7 +254,7 @@ class RunController extends Controller
         ];
 
         if ($form) {
-            $rules['state'] = ['required', 'string', 'max:100000'];
+            $rules['state'] = ['required', 'string', 'max:150000'];
             $rules['questions'] = ['nullable', 'array', 'max:64'];
             $rules['questions.*.name'] = ['nullable', 'string', 'max:100'];
             $rules['questions.*.type'] = ['nullable', 'string', 'max:20'];
@@ -269,7 +269,7 @@ class RunController extends Controller
             $rules['questions.*.levels'] = ['nullable', 'array', 'max:32'];
             $rules['questions.*.levels.*'] = ['nullable', 'string', 'max:200'];
         } else {
-            $rules['body'] = ['nullable', 'string', 'max:100000'];
+            $rules['body'] = ['nullable', 'string', 'max:150000'];
         }
 
         $validated = $request->validate($rules, [
@@ -315,12 +315,17 @@ class RunController extends Controller
             ]);
         }
 
+        $duration = $response->formattedDuration();
+        $questionsCount = $payload->questionCount($body);
+
         if ($request->expectsJson()) {
             $result = [
                 'url' => $response->url,
                 'status' => $response->status,
+                'duration' => $duration,
+                'questions_count' => $questionsCount,
                 'body' => $response->body,
-                'decision' => $payload->present($response->body),
+                'decision' => $payload->present($response->body, ($setting->yes_threshold ?? 50) / 100),
                 'pretty' => $payload->pretty($response->body),
             ];
 
@@ -338,6 +343,8 @@ class RunController extends Controller
             ->with('result', [
                 'url' => $response->url,
                 'status' => $response->status,
+                'duration' => $duration,
+                'questions_count' => $questionsCount,
                 'body' => $response->body,
             ]);
     }

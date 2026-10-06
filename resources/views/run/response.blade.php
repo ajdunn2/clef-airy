@@ -1,23 +1,35 @@
 <div class="grid min-w-0 gap-3">
     <div class="flex items-center gap-2">
         <span @class([
-            'rounded-full px-2 py-0.5 text-xs font-medium',
+            'rounded-full px-2 py-0.5 font-mono text-xs font-medium',
             'bg-red-50 text-red-700' => $result['status'] === null || $result['status'] >= 400,
             'bg-ink/8 text-ink' => is_int($result['status']) && $result['status'] < 400,
-        ])>{{ $result['status'] === null ? 'Failed' : $result['status'] }}</span>
+        ])>{{ $result['status'] === null ? 'Failed' : 'HTTP '.$result['status'] }}</span>
     </div>
     <textarea data-response-body hidden>{{ $result['body'] }}</textarea>
     <p class="break-all font-mono text-xs text-muted">{{ $result['url'] }}</p>
 
+    @php
+        $meta = array_values(array_filter([
+            $result['decision']['usage'] ?? null,
+            $result['duration'] ?? null,
+            isset($result['questions_count']) && $result['questions_count'] !== null
+                ? $result['questions_count'].' '.\Illuminate\Support\Str::plural('question', $result['questions_count']).' sent'
+                : null,
+        ]));
+    @endphp
+
     <div data-switch class="grid gap-3">
         <div class="flex justify-end">
             <div class="flex rounded-lg bg-canvas p-0.5 text-[13px]">
-                <label class="cursor-pointer rounded-md px-2.5 py-1 text-muted">
+                <label class="inline-flex cursor-pointer items-center gap-1 rounded-md px-2.5 py-1 text-muted">
                     <input type="radio" name="result_view" value="form" data-pick="form" class="sr-only" checked>
+                    <x-lucide-baby class="size-3.5 shrink-0" aria-hidden="true" />
                     Easy
                 </label>
-                <label class="cursor-pointer rounded-md px-2.5 py-1 text-muted">
+                <label class="inline-flex cursor-pointer items-center gap-1 rounded-md px-2.5 py-1 text-muted">
                     <input type="radio" name="result_view" value="json" data-pick="json" class="sr-only">
+                    <x-lucide-braces class="size-3.5 shrink-0" aria-hidden="true" />
                     JSON
                 </label>
             </div>
@@ -64,17 +76,17 @@
                             @endif
                         </article>
                     @endforeach
-                    @if ($result['decision']['usage'])
-                        <p class="text-[13px] text-muted">{{ $result['decision']['usage'] }}</p>
-                    @endif
                 @endif
             @else
                 <pre data-highlight-json class="max-h-[28rem] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-canvas p-3 font-mono text-[13px]">{{ $result['pretty'] ?? $result['body'] }}</pre>
             @endif
         </div>
 
-        <div data-panel="json">
+        <div data-panel="json" class="grid gap-3">
             <pre data-highlight-json class="max-h-[28rem] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-canvas p-3 font-mono text-[13px]">{{ $result['pretty'] ?? $result['body'] }}</pre>
         </div>
     </div>
+    @if ($meta !== [])
+        <p class="text-[13px] text-muted">{{ implode(' · ', $meta) }}</p>
+    @endif
 </div>
