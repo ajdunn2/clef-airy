@@ -7,12 +7,18 @@ use App\Models\SystemOneSetting;
 use App\Services\SystemOneClient;
 use App\Services\SystemOnePayload;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
+use JsonException;
+use Native\Desktop\Dialog;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class RunController extends Controller
 {
@@ -329,5 +335,80 @@ class RunController extends Controller
                 'status' => $response->status,
                 'body' => $response->body,
             ]);
+    }
+
+    public function download(Request $request): JsonResponse|StreamedResponse
+    {
+        $validated = $request->validate([
+            'request' => ['nullable', 'string', 'max:500000'],
+            'response' => ['present', 'string', 'max:500000'],
+        ]);
+
+        try {
+            $document = json_encode([
+                'request' => $this->jsonValue($validated['request'] ?? null),
+                'response' => $this->jsonValue($validated['response']),
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)."\n";
+        } catch (JsonException) {
+            return response()->json(['message' => 'The file could not be saved.'], 422);
+        }
+
+        if (! config('nativephp-internal.running')) {
+            return response()->streamDownload(function () use ($document): void {
+                echo $document;
+            }, 'request-response.json', ['Content-Type' => 'application/json']);
+        }
+
+        try {
+            // save() returns the path the user chose. It does not write the file.
+            $path = Dialog::new()
+                ->title('Save request and response')
+                ->button('Save')
+                ->defaultPath($this->defaultDownloadPath())
+                ->filter('JSON', ['json'])
+                ->save();
+        } catch (ConnectionException) {
+            return response()->json(['message' => 'The save dialog could not be opened.'], 500);
+        }
+
+        if (! is_string($path) || $path === '' || str_contains($path, "\0")) {
+            return response()->json(['saved' => false]);
+        }
+
+        if (is_dir($path) || File::put($path, $document) === false) {
+            return response()->json(['message' => 'The file could not be saved.'], 500);
+        }
+
+        return response()->json(['saved' => true]);
+    }
+
+    private function jsonValue(?string $value): mixed
+    {
+        $trimmed = trim((string) $value);
+
+        if ($trimmed === '') {
+            return null;
+        }
+
+        try {
+            if (! json_validate($trimmed)) {
+                return $value;
+            }
+
+            return json_decode($trimmed, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            return $value;
+        }
+    }
+
+    private function defaultDownloadPath(): string
+    {
+        $root = config('filesystems.disks.downloads.root');
+
+        if (! is_string($root) || $root === '') {
+            return 'request-response.json';
+        }
+
+        return Storage::disk('downloads')->path('request-response.json');
     }
 }

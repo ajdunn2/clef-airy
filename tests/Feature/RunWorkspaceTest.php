@@ -83,6 +83,7 @@ class RunWorkspaceTest extends TestCase
         $this->assertSame(2, preg_match_all('/data-send[^>]*>\s*<svg\b[\s\S]*?M14\.536 21\.686[\s\S]*?<\/svg>\s*<span[^>]*>Send<\/span>/', $response->getContent()));
         $this->assertMatchesRegularExpression('/copyRequest[\s\S]*?<svg\b[\s\S]*?M4 16c-1\.1 0-2-\.9-2-2V4[\s\S]*?<\/svg>\s*<span[^>]*>Copy request<\/span>/', $response->getContent());
         $this->assertMatchesRegularExpression('/copyResponse[\s\S]*?<svg\b[\s\S]*?M4 16c-1\.1 0-2-\.9-2-2V4[\s\S]*?<\/svg>\s*<span[^>]*>Copy response<\/span>/', $response->getContent());
+        $this->assertMatchesRegularExpression('/x-show="hasResponse"[\s\S]*?data-download-exchange[\s\S]*?<svg\b[\s\S]*?M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4[\s\S]*?<\/svg>\s*<span[^>]*>Download JSON<\/span>/', $response->getContent());
         $this->assertMatchesRegularExpression('/name="body_mode"[^>]*value="form"[\s\S]*?<svg\b[\s\S]*?M4 14h6[\s\S]*?<\/svg>\s*Form/', $response->getContent());
         $this->assertMatchesRegularExpression('/name="body_mode"[^>]*value="json"[\s\S]*?<svg\b[\s\S]*?M8 3H7a2 2 0 0 0-2 2v5[\s\S]*?<\/svg>\s*JSON/', $response->getContent());
         $response->assertSeeInOrder(['POST', '/v1/systemone', 'Edit']);
@@ -238,5 +239,131 @@ class RunWorkspaceTest extends TestCase
         $response->assertOk();
         $this->assertStringContainsString('API error', $response->json('html'));
         $this->assertStringContainsString('invalid character &#039;}&#039; looking for beginning of object key string', $response->json('html'));
+    }
+
+    public function test_download_returns_the_request_and_response_json(): void
+    {
+        Http::preventStrayRequests();
+
+        $response = $this->postJson('/run/download', [
+            'request' => '{"state":"Hello","model":"clef-flash"}',
+            'response' => '{"ok":true}',
+        ]);
+
+        $response->assertDownload('request-response.json');
+        $this->assertSame([
+            'request' => ['state' => 'Hello', 'model' => 'clef-flash'],
+            'response' => ['ok' => true],
+        ], json_decode($response->streamedContent(), true));
+    }
+
+    public function test_download_keeps_text_that_is_not_json(): void
+    {
+        Http::preventStrayRequests();
+
+        $response = $this->postJson('/run/download', [
+            'request' => 'not json',
+            'response' => 'API unavailable.',
+        ]);
+
+        $response->assertDownload('request-response.json');
+        $this->assertSame([
+            'request' => 'not json',
+            'response' => 'API unavailable.',
+        ], json_decode($response->streamedContent(), true));
+    }
+
+    public function test_download_requires_a_response(): void
+    {
+        $this->postJson('/run/download', [
+            'request' => '{"state":"Hello"}',
+        ])->assertUnprocessable()->assertJsonValidationErrors([
+            'response' => 'The response field must be present.',
+        ]);
+    }
+
+    public function test_native_download_writes_the_file_chosen_in_the_save_dialog(): void
+    {
+        Http::preventStrayRequests();
+        $directory = sys_get_temp_dir().'/clef-airy-download-'.uniqid();
+        mkdir($directory);
+        $chosen = $directory.'/my-run.json';
+        config([
+            'nativephp-internal.running' => true,
+            'nativephp-internal.api_url' => 'http://native.test',
+            'filesystems.disks.downloads' => [
+                'driver' => 'local',
+                'root' => $directory,
+            ],
+        ]);
+        Http::fake([
+            'http://native.test/dialog/save' => Http::response(['result' => $chosen]),
+        ]);
+
+        try {
+            $this->postJson('/run/download', [
+                'request' => '{"state":"Hello"}',
+                'response' => '{"ok":true}',
+            ])->assertOk()->assertJsonPath('saved', true);
+
+            Http::assertSent(fn ($request): bool => $request->url() === 'http://native.test/dialog/save'
+                && $request['title'] === 'Save request and response'
+                && $request['buttonLabel'] === 'Save'
+                && $request['defaultPath'] === $directory.'/request-response.json'
+                && $request['filters'] === [['name' => 'JSON', 'extensions' => ['json']]]);
+            $this->assertSame([
+                'request' => ['state' => 'Hello'],
+                'response' => ['ok' => true],
+            ], json_decode((string) file_get_contents($chosen), true));
+        } finally {
+            @unlink($chosen);
+            @rmdir($directory);
+        }
+    }
+
+    public function test_native_download_writes_nothing_when_the_save_dialog_is_cancelled(): void
+    {
+        Http::preventStrayRequests();
+        $directory = sys_get_temp_dir().'/clef-airy-download-'.uniqid();
+        mkdir($directory);
+        config([
+            'nativephp-internal.running' => true,
+            'nativephp-internal.api_url' => 'http://native.test',
+            'filesystems.disks.downloads' => [
+                'driver' => 'local',
+                'root' => $directory,
+            ],
+        ]);
+        Http::fake([
+            'http://native.test/dialog/save' => Http::response(['result' => null]),
+        ]);
+
+        try {
+            $this->postJson('/run/download', [
+                'request' => '{"state":"Hello"}',
+                'response' => '{"ok":true}',
+            ])->assertOk()->assertJsonPath('saved', false);
+
+            $this->assertSame([], array_diff(scandir($directory) ?: [], ['.', '..']));
+        } finally {
+            @rmdir($directory);
+        }
+    }
+
+    public function test_native_download_reports_when_the_save_dialog_cannot_open(): void
+    {
+        Http::preventStrayRequests();
+        config([
+            'nativephp-internal.running' => true,
+            'nativephp-internal.api_url' => 'http://native.test',
+        ]);
+        Http::fake([
+            'http://native.test/*' => Http::failedConnection('Electron is not running.'),
+        ]);
+
+        $this->postJson('/run/download', [
+            'request' => '{"state":"Hello"}',
+            'response' => '{"ok":true}',
+        ])->assertServerError()->assertJsonPath('message', 'The save dialog could not be opened.');
     }
 }

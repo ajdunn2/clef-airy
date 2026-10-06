@@ -16,6 +16,7 @@ Route::post('/run/example-2', [RunController::class, 'store'])->name('run.exampl
 Route::get('/run/example-3', [RunController::class, 'create'])->name('run.example3');
 Route::post('/run/example-3', [RunController::class, 'store'])->name('run.example3.store');
 Route::post('/run', [RunController::class, 'store'])->name('run.store');
+Route::post('/run/download', [RunController::class, 'download'])->name('run.download');
 
 Route::get('/calls/{savedCall}', [RunController::class, 'show'])->name('calls.show');
 Route::post('/calls', [SavedCallController::class, 'store'])->name('calls.store');

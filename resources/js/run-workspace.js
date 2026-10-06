@@ -5,6 +5,7 @@ export default () => ({
     error: '',
     feedback: '',
     hasResponse: false,
+    downloading: false,
     copied: '',
 
     init() {
@@ -59,6 +60,7 @@ export default () => ({
         this.error = '';
         this.feedback = '';
         this.hasResponse = false;
+        this.downloading = false;
         this.$refs.response.replaceChildren();
 
         try {
@@ -110,6 +112,82 @@ export default () => ({
         this.copyTimer = setTimeout(() => {
             this.copied = '';
         }, 2000);
+    },
+
+    async downloadExchange() {
+        if (! this.hasResponse || this.downloading) {
+            return;
+        }
+
+        const responseBody = this.$refs.response?.querySelector('[data-response-body]')?.value;
+
+        if (typeof responseBody !== 'string') {
+            return;
+        }
+
+        let requestBody = this.requestBody() ?? '';
+        const model = document.getElementById('model')?.value;
+
+        if (requestBody !== '' && model) {
+            requestBody = withSelectedModel(requestBody, model);
+        }
+
+        const button = document.querySelector('[data-download-exchange]');
+        const token = this.$refs.form?.querySelector('input[name="_token"]')?.value ?? '';
+        this.downloading = true;
+        this.feedback = '';
+
+        try {
+            const response = await fetch(button?.dataset.downloadUrl ?? '', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': token,
+                },
+                body: JSON.stringify({
+                    request: requestBody,
+                    response: responseBody,
+                }),
+            });
+
+            if (response.status === 419) {
+                this.feedback = 'Your session has expired. Reload the app before downloading again.';
+
+                return;
+            }
+
+            const disposition = response.headers.get('Content-Disposition') ?? '';
+
+            if (response.ok && disposition.includes('attachment')) {
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'request-response.json';
+                document.body.append(link);
+                link.click();
+                link.remove();
+                URL.revokeObjectURL(url);
+
+                return;
+            }
+
+            const result = await response.json().catch(() => ({}));
+
+            if (! response.ok) {
+                const errors = result.errors ?? {};
+                this.feedback = result.errors
+                    ? Object.values(errors).flat().join('\n')
+                    : (result.message || 'The file could not be saved.');
+            }
+        } catch {
+            this.feedback = 'The file could not be saved.';
+        } finally {
+            this.downloading = false;
+        }
     },
 
     async copyResponse() {

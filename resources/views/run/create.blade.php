@@ -240,12 +240,17 @@
             </div>
         </div>
         <p x-cloak x-show="error" x-text="error" role="alert" class="mb-3 whitespace-pre-line text-[13px] text-red-700"></p>
-        <div x-ref="response" class="min-w-0">
-            @if (is_array($result))
-                @include('run.response', ['result' => $result])
-            @else
-                <div class="flex min-h-64 items-end border border-line bg-canvas p-4"><p class="font-mono text-xs text-muted">Awaiting response</p></div>
-            @endif
+        <div class="grid gap-3">
+            <div x-ref="response" class="min-w-0">
+                @if (is_array($result))
+                    @include('run.response', ['result' => $result])
+                @else
+                    <div class="flex min-h-64 items-end border border-line bg-canvas p-4"><p class="font-mono text-xs text-muted">Awaiting response</p></div>
+                @endif
+            </div>
+            <div x-cloak x-show="hasResponse" class="flex justify-end">
+                <button type="button" data-download-exchange data-download-url="{{ route('run.download') }}" x-on:click="downloadExchange" :disabled="downloading" class="inline-flex min-w-36 items-center justify-center gap-1 rounded-lg border border-line px-3 py-1.5 text-[13px] font-medium disabled:opacity-40"><x-lucide-download class="size-4 shrink-0" aria-hidden="true" /><span x-text="downloading ? 'Saving…' : 'Download JSON'">Download JSON</span></button>
+            </div>
         </div>
     </section>
     </div>
