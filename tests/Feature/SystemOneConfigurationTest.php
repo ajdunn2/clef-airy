@@ -145,7 +145,7 @@ class SystemOneConfigurationTest extends TestCase
         $this->assertStringContainsString('Could not load models from TypeSafe.', $result['error']);
     }
 
-    public function test_switching_from_ollama_to_typesafe_selects_jev_and_removes_clef_choices(): void
+    public function test_switching_from_ollama_to_typesafe_clears_incompatible_clef_model_and_removes_clef_choices(): void
     {
         $this->put('/configuration', [
             'api_url' => 'http://localhost:11434', 'model' => 'clef-flash:latest',
@@ -156,15 +156,15 @@ class SystemOneConfigurationTest extends TestCase
             'password' => 'test-api-key', 'model' => 'clef-flash:latest',
         ])->assertRedirect(route('configuration.edit'));
 
-        $this->assertSame('jev-latest', SystemOneSetting::current()->model);
+        $this->assertNull(SystemOneSetting::current()->model);
         $this->get(route('configuration.edit'))
-            ->assertSee('value="jev-latest" selected', false)
+            ->assertSee('Choose a model…')
             ->assertDontSee('value="clef', false);
-        $this->get('/run')->assertSee('value="jev-latest" selected', false)
+        $this->get('/run')->assertSee('Choose a model…')
             ->assertDontSee('value="clef', false);
     }
 
-    public function test_existing_typesafe_settings_with_a_stale_clef_model_display_jev(): void
+    public function test_existing_typesafe_settings_with_a_stale_clef_model_clears_selection_and_removes_clef_choices(): void
     {
         $this->put('/configuration', ['api_url' => 'https://api.typesafe.ai', 'auth_type' => 'bearer']);
         $setting = SystemOneSetting::current();
@@ -172,9 +172,9 @@ class SystemOneConfigurationTest extends TestCase
         $setting->save();
 
         $this->get(route('configuration.edit'))
-            ->assertSee('value="jev-latest" selected', false)
+            ->assertSee('Choose a model…')
             ->assertDontSee('value="clef', false);
-        $this->get('/run')->assertSee('value="jev-latest" selected', false)
+        $this->get('/run')->assertSee('Choose a model…')
             ->assertDontSee('value="clef', false);
     }
 
@@ -292,13 +292,13 @@ class SystemOneConfigurationTest extends TestCase
         ]);
 
         $response = $this->put('/configuration', [
-            'api_url' => 'https://api.example.test/v2',
+            'api_url' => 'https://api.example.test',
             'username' => 'ada',
             'password' => '',
         ]);
 
         $response->assertRedirect(route('configuration.edit'));
-        $this->assertSame('https://api.example.test/v2', SystemOneSetting::current()?->base_url);
+        $this->assertSame('https://api.example.test', SystemOneSetting::current()?->base_url);
         $this->assertSame('secret', SystemOneSetting::current()?->password);
     }
 
@@ -548,6 +548,7 @@ class SystemOneConfigurationTest extends TestCase
         $this->post('/run', [
             'method' => 'POST',
             'path' => 'events',
+            'model' => 'clef-flash',
             'body' => '{"name":"Ada"}',
         ]);
 
@@ -635,5 +636,110 @@ class SystemOneConfigurationTest extends TestCase
         Http::assertSentCount(1);
         $this->assertTrue($models['fromApi']);
         $this->assertSame(['clef-flash:latest'], $models['models']);
+    }
+
+    public function test_configuration_page_renders_presets_for_ollama_and_typesafe(): void
+    {
+        $response = $this->get(route('configuration.edit'))->assertOk();
+
+        $response->assertSee('Presets:');
+        $response->assertSee('Local Ollama');
+        $response->assertSee('TypeSafe AI');
+        $response->assertSee('Choose a model…');
+    }
+
+    public function test_saving_configuration_without_a_model_leaves_model_null(): void
+    {
+        $this->put('/configuration', [
+            'api_url' => 'http://localhost:11434',
+            'auth_type' => 'none',
+        ])->assertRedirect(route('configuration.edit'));
+
+        $this->assertNull(SystemOneSetting::current()->model);
+
+        $response = $this->get(route('configuration.edit'))->assertOk();
+        $response->assertSee('Choose a model…');
+    }
+
+    public function test_workspace_run_without_selected_model_does_not_inject_model_into_body(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([
+            'http://localhost:11434/v1/systemone' => Http::response('{}'),
+        ]);
+
+        $this->put('/configuration', [
+            'api_url' => 'http://localhost:11434',
+            'auth_type' => 'none',
+        ]);
+
+        $this->post('/run', [
+            'method' => 'POST',
+            'path' => '/v1/systemone',
+            'body' => '{"state":"Checkout issue","questions":{}}',
+        ])->assertRedirect(route('run.create'));
+
+        Http::assertSent(function (Request $request): bool {
+            $body = json_decode($request->body(), true);
+
+            return is_array($body)
+                && ! array_key_exists('model', $body)
+                && ($body['state'] ?? null) === 'Checkout issue';
+        });
+    }
+
+    public function test_switching_to_typesafe_does_not_keep_an_ollama_model(): void
+    {
+        $this->put('/configuration', ['api_url' => 'http://localhost:11434', 'model' => 'nimble', 'auth_type' => 'none']);
+        $this->put('/configuration', ['api_url' => 'https://api.typesafe.ai', 'model' => 'nimble', 'auth_type' => 'bearer'])
+            ->assertRedirect(route('configuration.edit'));
+        $this->assertDatabaseHas('system_one_settings', ['model' => null]);
+        $this->get(route('configuration.edit'))->assertOk()->assertDontSee('nimble')->assertSee('Choose a model…');
+    }
+
+    public function test_discovered_typesafe_models_do_not_include_an_unavailable_saved_model(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['https://api.typesafe.ai/v1/models' => Http::response(['models' => [['name' => 'jev-latest']]])]);
+        $client = new class extends SystemOneClient
+        {
+            protected function shouldLookupModels(): bool
+            {
+                return true;
+            }
+        };
+        $this->assertSame(['jev-latest'], $client->models('https://api.typesafe.ai', 'jev-old')['models']);
+        Http::assertSentCount(1);
+    }
+
+    public function test_clearing_the_workspace_model_does_not_reuse_the_saved_model(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['http://localhost:11434/v1/systemone' => Http::response('{}')]);
+        $this->put('/configuration', ['api_url' => 'http://localhost:11434', 'model' => 'nimble', 'auth_type' => 'none']);
+        $this->post('/run', ['method' => 'POST', 'path' => '/v1/systemone', 'model' => '', 'body' => '{"state":"Hello"}'])
+            ->assertRedirect(route('run.create'));
+        Http::assertSent(fn (Request $request): bool => ! array_key_exists('model', json_decode($request->body(), true)));
+        $this->assertDatabaseHas('system_one_settings', ['model' => null]);
+    }
+
+    public function test_switching_endpoints_drops_the_saved_token_even_when_switching_back(): void
+    {
+        $this->put('/configuration', ['api_url' => 'https://api.typesafe.ai', 'auth_type' => 'bearer', 'password' => 'old-token']);
+        $this->put('/configuration', ['api_url' => 'http://localhost:11434', 'auth_type' => 'none', 'password' => ''])
+            ->assertRedirect(route('configuration.edit'));
+        $this->assertSame('', SystemOneSetting::current()->password);
+        $this->put('/configuration', ['api_url' => 'https://api.typesafe.ai', 'auth_type' => 'bearer', 'password' => '']);
+        $this->assertSame('', SystemOneSetting::current()->password);
+    }
+
+    public function test_switching_endpoints_can_save_a_new_token(): void
+    {
+        $this->put('/configuration', ['api_url' => 'https://api.typesafe.ai', 'auth_type' => 'bearer', 'password' => 'old-token']);
+        $this->put('/configuration', ['api_url' => 'https://other.example.test', 'auth_type' => 'bearer', 'password' => 'new-token'])
+            ->assertRedirect(route('configuration.edit'));
+        $this->assertSame('new-token', SystemOneSetting::current()->password);
+        $this->put('/configuration', ['api_url' => 'https://other.example.test', 'auth_type' => 'bearer', 'password' => '']);
+        $this->assertSame('new-token', SystemOneSetting::current()->password);
     }
 }

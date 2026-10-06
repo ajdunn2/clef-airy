@@ -21,7 +21,7 @@ class DesktopSecurityTest extends TestCase
         $this->assertSame('test-password', SystemOneSetting::current()->password);
     }
 
-    public function test_saved_credentials_can_be_used_with_remote_http(): void
+    public function test_changing_from_https_to_http_clears_saved_credentials(): void
     {
         $this->put('/configuration', [
             'api_url' => 'https://api.example.test',
@@ -34,7 +34,7 @@ class DesktopSecurityTest extends TestCase
         ])->assertSessionHasNoErrors();
 
         $this->assertSame('http://api.example.test', SystemOneSetting::current()->base_url);
-        $this->assertSame('test-password', SystemOneSetting::current()->password);
+        $this->assertSame('', SystemOneSetting::current()->password);
     }
 
     public function test_local_http_credentials_can_be_saved(): void

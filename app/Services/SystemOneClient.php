@@ -17,6 +17,10 @@ class SystemOneClient
      */
     public function models(?string $baseUrl, ?string $selected = null): array
     {
+        if (! filled($baseUrl)) {
+            return ['models' => [], 'fromApi' => false, 'error' => null];
+        }
+
         try {
             $installed = $this->installedModels($baseUrl);
         } catch (InvalidArgumentException $exception) {
@@ -25,7 +29,7 @@ class SystemOneClient
         $names = $installed ?? ($this->isTypeSafe($baseUrl) ? ['jev-latest', 'jev-preview'] : ['clef-flash', 'clef']);
         $selected = filled($selected) ? $this->modelForApi($baseUrl, $selected) : null;
 
-        if (filled($selected) && ! in_array($selected, $names, true) && ($installed === null || $this->isTypeSafe($baseUrl))) {
+        if (filled($selected) && ! in_array($selected, $names, true) && $installed === null) {
             array_unshift($names, $selected);
         }
 
@@ -36,13 +40,17 @@ class SystemOneClient
         ];
     }
 
-    public function modelForApi(?string $baseUrl, ?string $selected): string
+    public function modelForApi(?string $baseUrl, ?string $selected): ?string
     {
-        if ($this->isTypeSafe($baseUrl) && (! filled($selected) || str_starts_with($selected, 'clef'))) {
-            return 'jev-latest';
+        if (! filled($selected)) {
+            return null;
         }
 
-        return filled($selected) ? $selected : ($this->isTypeSafe($baseUrl) ? 'jev-latest' : 'clef-flash');
+        if ($this->isTypeSafe($baseUrl) && ! str_starts_with($selected, 'jev')) {
+            return null;
+        }
+
+        return $selected;
     }
 
     private function isTypeSafe(?string $baseUrl): bool

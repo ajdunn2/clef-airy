@@ -27,6 +27,8 @@
                     <select id="model" name="model" class="rounded-lg border border-line bg-field px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">
                         @if ($modelError)
                             <option value="" selected disabled>Models unavailable</option>
+                        @else
+                            <option value="" @selected(! filled(old('model', $model)))>Choose a model…</option>
                         @endif
                         @foreach ($models as $name)
                             <option value="{{ $name }}" @selected(old('model', $model) === $name)>{{ $name }}</option>

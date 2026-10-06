@@ -23,7 +23,7 @@ class ConfigurationController extends Controller
             'apiUrl' => $setting?->base_url,
             'username' => $setting?->username,
             'yesThreshold' => $setting?->yes_threshold ?? 50,
-            'authType' => $setting?->auth_type ?? 'basic',
+            'authType' => $setting?->auth_type ?? 'none',
             'hasPassword' => filled($setting?->getRawOriginal('password')),
             'passwordNeedsReset' => $setting !== null
                 && ! str_starts_with((string) $setting->getRawOriginal('password'), 'native:v1:')
@@ -67,6 +67,11 @@ class ConfigurationController extends Controller
             'api_url.url' => 'Enter an http or https API URL.',
         ]);
 
+        $credentialsChanged = $setting !== null && (
+            $setting->base_url !== $validated['api_url']
+            || $setting->auth_type !== ($validated['auth_type'] ?? $setting->auth_type)
+        );
+
         $setting ??= new SystemOneSetting;
         $setting->yes_threshold = $validated['yes_threshold'] ?? $setting->yes_threshold ?? 50;
         $setting->base_url = $validated['api_url'];
@@ -75,11 +80,11 @@ class ConfigurationController extends Controller
 
         if (filled($validated['password'] ?? null)) {
             $setting->password = $validated['password'];
-        } elseif ($request->boolean('remove_password') || ! filled($setting->getRawOriginal('password'))) {
+        } elseif ($credentialsChanged || $request->boolean('remove_password') || ! filled($setting->getRawOriginal('password'))) {
             $setting->password = '';
         }
 
-        $setting->model = $client->modelForApi($setting->base_url, $validated['model'] ?? $setting->model);
+        $setting->model = $client->modelForApi($setting->base_url, $validated['model'] ?? null);
 
         $setting->save();
 

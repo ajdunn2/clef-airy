@@ -290,7 +290,7 @@ class RunController extends Controller
             $body = $validated['body'] ?? null;
         }
 
-        $model = filled($validated['model'] ?? null) ? $validated['model'] : ($setting->model ?: 'clef-flash');
+        $model = array_key_exists('model', $validated) ? $validated['model'] : $setting->model;
 
         if ($setting->model !== $model) {
             $setting->model = $model;
