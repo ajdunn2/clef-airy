@@ -61,3 +61,40 @@ test('URL input trims pasted spaces and invisible line separators', () => {
         assert.equal(context.apiUrl, input.value);
     }
 });
+
+test('switching to cloudflare preset sets the endpoint and Workers AI auth', () => {
+    const { state, urlChanged } = configuration();
+    state.applyPreset('cloudflare');
+    urlChanged();
+    assert.equal(state.apiUrl, 'https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run');
+    assert.equal(state.authType, 'cloudflare');
+    assert.equal(state.model, '');
+    assert.equal(state.isCloudflare, true);
+
+    state.setCfAccountId('7aef896fe2ac7dd291e953a8e7d35250');
+    assert.equal(state.cfAccountId, '7aef896fe2ac7dd291e953a8e7d35250');
+    assert.equal(state.apiUrl, 'https://api.cloudflare.com/client/v4/accounts/7aef896fe2ac7dd291e953a8e7d35250/ai/run');
+});
+
+test('Cloudflare account field hides when another auth type is selected', () => {
+    const { state } = configuration();
+    state.applyPreset('cloudflare');
+    state.setCfAccountId('test-account');
+    assert.equal(state.isCloudflare, true);
+
+    for (const authType of ['none', 'basic', 'bearer']) {
+        state.authType = authType;
+        assert.equal(state.isCloudflare, false);
+    }
+});
+
+
+test('save forms contain only their respective configuration fields', () => {
+    const forms = [...view.matchAll(/<form\b[\s\S]*?<\/form>/g)].map((match) => match[0]);
+    assert.equal(forms.length, 2);
+    assert.match(forms[0], /name="api_url"/);
+    assert.doesNotMatch(forms[0], /name="(?:model|yes_threshold)"/);
+    assert.match(forms[1], /name="model"/);
+    assert.match(forms[1], /name="yes_threshold"/);
+    assert.doesNotMatch(forms[1], /name="(?:api_url|auth_type|username|password)"/);
+});

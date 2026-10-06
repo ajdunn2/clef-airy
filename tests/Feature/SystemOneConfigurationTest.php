@@ -742,4 +742,164 @@ class SystemOneConfigurationTest extends TestCase
         $this->put('/configuration', ['api_url' => 'https://other.example.test', 'auth_type' => 'bearer', 'password' => '']);
         $this->assertSame('new-token', SystemOneSetting::current()->password);
     }
+
+    public function test_configuration_page_renders_the_cloudflare_preset_and_shared_models(): void
+    {
+        $this->put('/configuration', [
+            'api_url' => 'https://api.cloudflare.com/client/v4/accounts/test-acc/ai/run',
+            'auth_type' => 'bearer',
+            'password' => 'cf-token',
+        ])->assertRedirect(route('configuration.edit'));
+
+        $response = $this->get(route('configuration.edit'))->assertOk();
+
+        $response->assertSee('Cloudflare Workers AI');
+        $response->assertSee('Cloudflare Account ID');
+        $response->assertSee('@cf/cloudflare/clef-flash');
+        $response->assertSee('@cf/cloudflare/clef');
+        $response->assertSee('typesafe/jev');
+    }
+
+    public function test_saving_cloudflare_model_preserves_cloudflare_choice(): void
+    {
+        $this->put('/configuration', [
+            'api_url' => 'https://api.cloudflare.com/client/v4/accounts/test-acc/ai/run',
+            'auth_type' => 'bearer',
+            'password' => 'cf-token',
+            'model' => '@cf/cloudflare/clef-flash',
+        ])->assertRedirect(route('configuration.edit'));
+
+        $this->assertSame('@cf/cloudflare/clef-flash', SystemOneSetting::current()->model);
+    }
+
+    public function test_switching_from_cloudflare_to_ollama_clears_cloudflare_model(): void
+    {
+        $this->put('/configuration', [
+            'api_url' => 'https://api.cloudflare.com/client/v4/accounts/test-acc/ai/run',
+            'auth_type' => 'bearer',
+            'model' => '@cf/cloudflare/clef-flash',
+        ]);
+        $this->put('/configuration', [
+            'api_url' => 'http://localhost:11434',
+            'auth_type' => 'none',
+            'model' => '@cf/cloudflare/clef-flash',
+        ])->assertRedirect(route('configuration.edit'));
+
+        $this->assertDatabaseHas('system_one_settings', ['model' => null]);
+    }
+
+    public function test_cloudflare_request_normalizes_model_for_payload(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://api.cloudflare.com/client/v4/accounts/test-acc/ai/run/@cf/cloudflare/clef-flash' => Http::response([
+                'result' => [
+                    'model' => 'clef-flash',
+                    'answers' => [
+                        'urgent' => ['type' => 'noul', 'noul' => 0.95],
+                    ],
+                ],
+                'success' => true,
+            ]),
+        ]);
+
+        $this->put('/configuration', [
+            'api_url' => 'https://api.cloudflare.com/client/v4/accounts/test-acc/ai/run',
+            'auth_type' => 'bearer',
+            'password' => 'cf-token',
+            'model' => '@cf/cloudflare/clef-flash',
+        ]);
+
+        $this->post('/run', [
+            'method' => 'POST',
+            'path' => '/@cf/cloudflare/clef-flash',
+            'model' => '@cf/cloudflare/clef-flash',
+            'body' => '{"state":"Outage reported","questions":{"urgent":{"type":"noul","instructions":"Is it urgent?"}}}',
+        ])->assertRedirect(route('run.create'));
+
+        Http::assertSent(function (Request $request): bool {
+            $body = json_decode($request->body(), true);
+
+            return $request->url() === 'https://api.cloudflare.com/client/v4/accounts/test-acc/ai/run/@cf/cloudflare/clef-flash'
+                && $request->hasHeader('Authorization', 'Bearer cf-token')
+                && is_array($body)
+                && ($body['model'] ?? null) === 'clef-flash';
+        });
+
+        $page = $this->get('/run');
+        $page->assertOk()->assertSee('95% yes');
+    }
+
+    public function test_workers_ai_auth_uses_the_account_and_model_from_the_url(): void
+    {
+        Http::preventStrayRequests();
+        $url = 'https://api.cloudflare.com/client/v4/accounts/test-account/ai/run/@cf/cloudflare/clef-flash';
+        Http::fake([$url => Http::response(['success' => true, 'result' => ['answers' => []]])]);
+        $this->put('/configuration', ['api_url' => $url, 'auth_type' => 'cloudflare', 'password' => 'cf-test-token'])
+            ->assertRedirect(route('configuration.edit'))->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('system_one_settings', ['base_url' => $url, 'auth_type' => 'cloudflare', 'model' => '@cf/cloudflare/clef-flash']);
+        $this->get(route('configuration.edit'))->assertOk()->assertSee('Cloudflare Workers AI (API token)');
+        $this->post('/run', ['method' => 'POST', 'path' => '/v1/systemone', 'body' => '{"state":"Outage","questions":{}}'])
+            ->assertRedirect(route('run.create'))->assertSessionHasNoErrors();
+        Http::assertSent(fn (Request $request): bool => $request->url() === $url
+            && $request->hasHeader('Authorization', 'Bearer cf-test-token')
+            && $request['model'] === 'clef-flash');
+        Http::assertSentCount(1);
+    }
+
+    public function test_cloudflare_jev_uses_the_unified_endpoint_and_input_wrapper(): void
+    {
+        Http::preventStrayRequests();
+        $baseUrl = 'https://api.cloudflare.com/client/v4/accounts/test-account/ai/run';
+        Http::fake([$baseUrl => Http::response(['answers' => ['urgent' => ['type' => 'noul', 'noul' => 0.95]]])]);
+        $this->put('/configuration', [
+            'api_url' => $baseUrl.'/@cf/typesafe/jev', 'auth_type' => 'cloudflare',
+            'password' => 'cf-token', 'model' => '@cf/typesafe/jev',
+        ])->assertSessionHasNoErrors();
+        $this->assertSame('typesafe/jev', SystemOneSetting::current()->model);
+        $this->post('/run', [
+            'method' => 'POST', 'path' => '/@cf/typesafe/jev', 'model' => 'typesafe/jev',
+            'body' => '{"state":{"id":9007199254740993,"empty":{}},"questions":{"urgent":{"type":"noul","instructions":"Urgent?"}}}',
+        ])->assertRedirect(route('run.create'))->assertSessionHasNoErrors();
+        Http::assertSent(fn (Request $request): bool => $request->url() === $baseUrl
+            && $request->hasHeader('Authorization', 'Bearer cf-token')
+            && $request['model'] === 'typesafe/jev'
+            && $request['input']['questions']['urgent']['type'] === 'noul'
+            && str_contains($request->body(), '9007199254740993')
+            && str_contains($request->body(), '"empty":{}'));
+        $this->get('/run')->assertOk()->assertSee('95% yes');
+    }
+
+    public function test_credentials_save_does_not_change_decision_defaults(): void
+    {
+        $this->put('/configuration', ['api_url' => 'http://localhost:11434', 'auth_type' => 'none', 'model' => 'nimble', 'yes_threshold' => 80]);
+        $this->put('/configuration', [
+            'section' => 'credentials', 'api_url' => 'http://localhost:11434', 'auth_type' => 'basic',
+            'username' => 'tester', 'password' => 'new-secret', 'model' => 'other', 'yes_threshold' => -1,
+        ])->assertRedirect(route('configuration.edit'))->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('system_one_settings', ['username' => 'tester', 'auth_type' => 'basic', 'model' => 'nimble', 'yes_threshold' => 80]);
+        $this->assertSame('new-secret', SystemOneSetting::current()->password);
+    }
+
+    public function test_defaults_save_does_not_change_credentials(): void
+    {
+        $this->put('/configuration', ['api_url' => 'http://localhost:11434', 'auth_type' => 'basic', 'username' => 'tester', 'password' => 'secret', 'model' => 'nimble']);
+        $this->put(route('configuration.defaults.update'), ['yes_threshold' => 80])->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('system_one_settings', ['model' => 'nimble', 'yes_threshold' => 80]);
+        $this->put(route('configuration.defaults.update'), [
+            'model' => '', 'yes_threshold' => 90, 'api_url' => 'invalid', 'auth_type' => 'none',
+            'username' => 'other', 'password' => 'other', 'remove_password' => 1,
+        ])->assertRedirect(route('configuration.edit'))->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('system_one_settings', ['base_url' => 'http://localhost:11434', 'username' => 'tester', 'auth_type' => 'basic', 'model' => null, 'yes_threshold' => 90]);
+        $this->assertSame('secret', SystemOneSetting::current()->password);
+        $this->put(route('configuration.defaults.update'), ['model' => 'nimble', 'yes_threshold' => 101])->assertSessionHasErrors('yes_threshold');
+        $this->assertDatabaseHas('system_one_settings', ['model' => null, 'yes_threshold' => 90]);
+    }
+
+    public function test_defaults_require_saved_credentials(): void
+    {
+        $this->put(route('configuration.defaults.update'), ['model' => 'nimble', 'yes_threshold' => 50])
+            ->assertSessionHasErrors('model');
+        $this->assertDatabaseCount('system_one_settings', 0);
+    }
 }

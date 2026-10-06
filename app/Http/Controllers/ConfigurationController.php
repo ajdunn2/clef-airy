@@ -9,6 +9,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class ConfigurationController extends Controller
 {
@@ -16,8 +17,8 @@ class ConfigurationController extends Controller
     {
         $setting = SystemOneSetting::current();
         $apiUrl = $setting?->base_url ?: 'http://localhost:11434';
-        $model = $client->modelForApi($apiUrl, $setting?->model);
-        $models = $client->models($apiUrl, $model);
+        $model = $client->modelForApi($apiUrl, $setting?->model, $setting?->auth_type);
+        $models = $client->models($apiUrl, $model, $setting?->auth_type);
 
         return view('configuration.edit', [
             'apiUrl' => $setting?->base_url,
@@ -34,10 +35,30 @@ class ConfigurationController extends Controller
         ]);
     }
 
+    public function updateDefaults(Request $request, SystemOneClient $client): RedirectResponse
+    {
+        $validated = $request->validate([
+            'model' => ['nullable', 'string', 'max:255'],
+            'yes_threshold' => ['required', 'integer', 'between:0,100'],
+        ]);
+        $setting = SystemOneSetting::current();
+        if ($setting === null) {
+            throw ValidationException::withMessages(['model' => 'Save your credentials first.']);
+        }
+        if (array_key_exists('model', $validated)) {
+            $setting->model = $client->modelForApi($setting->base_url, $validated['model'], $setting->auth_type);
+        }
+        $setting->yes_threshold = $validated['yes_threshold'];
+        $setting->save();
+
+        return redirect()->route('configuration.edit')->with('status', 'Saved.');
+    }
+
     public function update(Request $request, SystemOneClient $client): RedirectResponse
     {
         $setting = SystemOneSetting::current();
 
+        $credentialsOnly = $request->input('section') === 'credentials';
         $validated = $request->validate([
             'api_url' => [
                 'required',
@@ -57,11 +78,11 @@ class ConfigurationController extends Controller
                 },
             ],
             'username' => ['nullable', 'string', 'max:255'],
-            'auth_type' => ['sometimes', Rule::in(['basic', 'bearer', 'none'])],
+            'auth_type' => ['sometimes', Rule::in(['basic', 'bearer', 'none', 'cloudflare'])],
             'password' => ['nullable', 'string', 'max:2000'],
             'remove_password' => ['sometimes', 'boolean'],
-            'model' => ['nullable', 'string', 'max:255'],
-            'yes_threshold' => ['sometimes', 'required', 'integer', 'between:0,100'],
+            'model' => [Rule::excludeIf($credentialsOnly), 'nullable', 'string', 'max:255'],
+            'yes_threshold' => [Rule::excludeIf($credentialsOnly), 'sometimes', 'required', 'integer', 'between:0,100'],
         ], [
             'api_url.required' => 'Enter the API URL.',
             'api_url.url' => 'Enter an http or https API URL.',
@@ -84,7 +105,9 @@ class ConfigurationController extends Controller
             $setting->password = '';
         }
 
-        $setting->model = $client->modelForApi($setting->base_url, $validated['model'] ?? null);
+        if (! $credentialsOnly) {
+            $setting->model = $client->modelForApi($setting->base_url, $validated['model'] ?? null, $setting->auth_type);
+        }
 
         $setting->save();
 

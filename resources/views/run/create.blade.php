@@ -24,7 +24,7 @@
             <div class="instrument-panel grid gap-4 rounded-xl border border-line bg-white p-5">
                 <div class="grid gap-1.5">
                     <label for="model" class="instrument-heading technical-label">Model</label>
-                    <select id="model" name="model" class="rounded-lg border border-line bg-field px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">
+                    <select id="model" name="model" x-on:change="$dispatch('model-chosen', $el.value)" class="rounded-lg border border-line bg-field px-3 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-accent/25">
                         @if ($modelError)
                             <option value="" selected disabled>Models unavailable</option>
                         @else
@@ -82,6 +82,7 @@
                         },
                     }"
                     x-on:endpoint-invalid.window="open($event)"
+                    x-on:model-chosen.window="if ($event.detail === 'typesafe/jev') { path = '/'; } else if ($event.detail && $event.detail.startsWith('@cf/')) { path = '/' + $event.detail.replace(/^\/+/, ''); }"
                 >
                     <div x-show="! editing" class="flex min-w-0 items-center gap-2">
                         <p class="flex min-w-0 flex-1 items-center gap-2 text-[13px]">

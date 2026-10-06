@@ -269,6 +269,8 @@ class RunWorkspaceTest extends TestCase
         $this->assertStringContainsString('1 question sent', $html);
         $this->assertMatchesRegularExpression('/\b\d+(\.\d+)?\s*(ms|s)\b/', $html);
         $this->assertStringContainsString('450 tokens in · 12 tokens out', $html);
+        $this->assertMatchesRegularExpression('/<svg\b[\s\S]*?450 tokens in · 12 tokens out/', $html);
+        $this->assertMatchesRegularExpression('/<svg\b[\s\S]*?1 question sent/', $html);
         $this->assertMatchesRegularExpression('/result_view"[^>]*value="form"[\s\S]*?<svg\b[\s\S]*?Easy/', $html);
         $this->assertMatchesRegularExpression('/result_view"[^>]*value="json"[\s\S]*?<svg\b[\s\S]*?JSON/', $html);
     }

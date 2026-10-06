@@ -94,10 +94,14 @@ class SystemOnePayload
             return null;
         }
 
+        if (is_array($decoded['result']['answers'] ?? null)) {
+            $decoded = $decoded['result'];
+        }
+
         if (! isset($decoded['answers']) || ! is_array($decoded['answers'])) {
             $error = isset($decoded['error']) && is_string($decoded['error']) && $decoded['error'] !== ''
                 ? $decoded['error']
-                : null;
+                : (isset($decoded['errors'][0]['message']) && is_string($decoded['errors'][0]['message']) ? $decoded['errors'][0]['message'] : null);
 
             return $error === null ? null : [
                 'model' => isset($decoded['model']) ? (string) $decoded['model'] : null,

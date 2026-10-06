@@ -170,8 +170,8 @@ class RunController extends Controller
             default => [self::EXAMPLE_STATE, self::EXAMPLE_QUESTIONS],
         };
         $setting = SystemOneSetting::current();
-        $selectedModel = $client->modelForApi($setting?->base_url, $savedCall?->model ?: $setting?->model);
-        $models = $client->models($setting?->base_url, $selectedModel);
+        $selectedModel = $client->modelForApi($setting?->base_url, $savedCall?->model ?: $setting?->model, $setting?->auth_type);
+        $models = $client->models($setting?->base_url, $selectedModel, $setting?->auth_type);
         $result = session('result');
 
         if (is_array($result) && is_string($result['body'] ?? null)) {
@@ -180,6 +180,11 @@ class RunController extends Controller
         }
 
         $defaultBody = in_array($exampleNumber, [2, 3], true) ? $payload->fromForm($exampleState, $exampleQuestions) : trim(self::DEFAULT_BODY);
+
+        $isCloudflare = $client->isCloudflare($setting?->base_url, $setting?->auth_type);
+        $defaultPath = $isCloudflare
+            ? ($selectedModel === 'typesafe/jev' ? '/' : ($selectedModel ? '/'.ltrim($selectedModel, '/') : ''))
+            : '/v1/systemone';
 
         return view('run.create', [
             'configured' => $setting !== null,
@@ -193,7 +198,7 @@ class RunController extends Controller
                 default => 'run.store',
             },
             'result' => $result,
-            'prefill' => $this->prefill($savedCall, $isExample, $exampleState, $exampleQuestions, $defaultBody),
+            'prefill' => $this->prefill($savedCall, $isExample, $exampleState, $exampleQuestions, $defaultBody, $defaultPath),
             'model' => $selectedModel,
             'models' => $models['models'],
             'modelError' => $models['error'],
@@ -204,7 +209,7 @@ class RunController extends Controller
      * @param  list<array<string, mixed>>  $exampleQuestions
      * @return array{body_mode: string, method: string, path: string, state: string, questions: list<array<string, mixed>>, body: string, name: string}
      */
-    private function prefill(?SavedCall $savedCall, bool $isExample, string $exampleState, array $exampleQuestions, string $defaultBody): array
+    private function prefill(?SavedCall $savedCall, bool $isExample, string $exampleState, array $exampleQuestions, string $defaultBody, string $defaultPath = '/v1/systemone'): array
     {
         if ($savedCall !== null) {
             $form = $savedCall->body_mode === 'form';
@@ -224,7 +229,7 @@ class RunController extends Controller
         return [
             'body_mode' => 'form',
             'method' => 'POST',
-            'path' => '/v1/systemone',
+            'path' => $defaultPath,
             'state' => $isExample ? $exampleState : '',
             'questions' => $isExample ? $exampleQuestions : [[]],
             'body' => $isExample ? $defaultBody : '',

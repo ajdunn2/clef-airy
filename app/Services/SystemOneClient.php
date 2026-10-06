@@ -13,12 +13,25 @@ use InvalidArgumentException;
 class SystemOneClient
 {
     /**
+     * @var list<string>
+     */
+    public const CLOUDFLARE_MODELS = [
+        '@cf/cloudflare/clef-flash',
+        '@cf/cloudflare/clef',
+        'typesafe/jev',
+    ];
+
+    /**
      * @return array{models: list<string>, fromApi: bool, error: ?string}
      */
-    public function models(?string $baseUrl, ?string $selected = null): array
+    public function models(?string $baseUrl, ?string $selected = null, ?string $authType = null): array
     {
-        if (! filled($baseUrl)) {
+        if (! filled($baseUrl) && $authType !== 'cloudflare') {
             return ['models' => [], 'fromApi' => false, 'error' => null];
+        }
+
+        if ($this->isCloudflare($baseUrl, $authType)) {
+            return ['models' => self::CLOUDFLARE_MODELS, 'fromApi' => false, 'error' => null];
         }
 
         try {
@@ -27,7 +40,7 @@ class SystemOneClient
             return ['models' => [], 'fromApi' => false, 'error' => $exception->getMessage()];
         }
         $names = $installed ?? ($this->isTypeSafe($baseUrl) ? ['jev-latest', 'jev-preview'] : ['clef-flash', 'clef']);
-        $selected = filled($selected) ? $this->modelForApi($baseUrl, $selected) : null;
+        $selected = filled($selected) ? $this->modelForApi($baseUrl, $selected, $authType) : null;
 
         if (filled($selected) && ! in_array($selected, $names, true) && $installed === null) {
             array_unshift($names, $selected);
@@ -40,8 +53,15 @@ class SystemOneClient
         ];
     }
 
-    public function modelForApi(?string $baseUrl, ?string $selected): ?string
+    public function modelForApi(?string $baseUrl, ?string $selected, ?string $authType = null): ?string
     {
+        if (! filled($selected) && $this->isCloudflare($baseUrl, $authType)
+            && preg_match('~/ai/run/((?:@cf/|typesafe/)[^?#]+)~', $baseUrl ?? '', $matches)) {
+            $selected = rtrim($matches[1], '/');
+        }
+
+        $selected = $selected === '@cf/typesafe/jev' ? 'typesafe/jev' : $selected;
+
         if (! filled($selected)) {
             return null;
         }
@@ -50,10 +70,29 @@ class SystemOneClient
             return null;
         }
 
+        if ($this->isCloudflare($baseUrl, $authType) && ! str_starts_with($selected, '@cf/') && $selected !== 'typesafe/jev') {
+            return null;
+        }
+
+        if (! $this->isCloudflare($baseUrl, $authType) && (str_starts_with($selected, '@cf/') || $selected === 'typesafe/jev')) {
+            return null;
+        }
+
         return $selected;
     }
 
-    private function isTypeSafe(?string $baseUrl): bool
+    public function isCloudflare(?string $baseUrl = null, ?string $authType = null): bool
+    {
+        if ($authType === 'cloudflare') {
+            return true;
+        }
+
+        $host = strtolower((string) parse_url($baseUrl ?? '', PHP_URL_HOST));
+
+        return $host === 'api.cloudflare.com';
+    }
+
+    public function isTypeSafe(?string $baseUrl): bool
     {
         return strtolower((string) parse_url($baseUrl ?? '', PHP_URL_HOST)) === 'api.typesafe.ai';
     }
@@ -64,14 +103,32 @@ class SystemOneClient
             throw new UnreadablePasswordException;
         }
 
-        $url = $this->endpoint($setting->base_url, $path);
+        $baseUrl = $setting->base_url;
+        if ($this->isCloudflare($baseUrl, $setting->auth_type)) {
+            $model = $this->modelForApi($baseUrl, $model, $setting->auth_type);
+            $baseUrl = preg_replace('~(/ai/run)/(?:@cf/|typesafe/)[^?#]+~', '$1', $baseUrl);
+        }
+
+        if ($this->isCloudflare($baseUrl, $setting->auth_type) && filled($model)) {
+            if ($path === '' || $path === '/v1/systemone' || str_starts_with($path, '/@cf/')) {
+                $path = '/'.ltrim($model, '/');
+            }
+        }
+
+        $isPartnerModel = $this->isCloudflare($baseUrl, $setting->auth_type) && $model === 'typesafe/jev';
+        $url = $this->endpoint($baseUrl, $isPartnerModel ? '/' : $path);
+        if ($isPartnerModel) {
+            $url = rtrim($url, '/');
+        }
         $pending = Http::connectTimeout(5)
             ->timeout(120)
             ->acceptJson();
 
         $pending = $this->authenticate($pending, $setting);
 
-        if (filled($model) && (filled($body) || in_array(strtoupper($method), ['POST', 'PUT', 'PATCH'], true))) {
+        if ($isPartnerModel && filled($body) && json_validate($body)) {
+            $body = '{"model":"typesafe/jev","input":'.$body.'}';
+        } elseif (filled($model) && (filled($body) || in_array(strtoupper($method), ['POST', 'PUT', 'PATCH'], true))) {
             $body = $this->withModel($body, $model);
         }
 
@@ -159,11 +216,11 @@ class SystemOneClient
 
     private function authenticate(PendingRequest $pending, ?SystemOneSetting $setting): PendingRequest
     {
-        if ($setting?->auth_type === 'bearer' && filled($setting->password)) {
+        if (in_array($setting?->auth_type, ['bearer', 'cloudflare'], true) && filled($setting->password)) {
             return $pending->withToken($setting->password);
         }
 
-        if ($setting !== null && $setting->auth_type !== 'none' && $setting->auth_type !== 'bearer'
+        if ($setting !== null && ! in_array($setting->auth_type, ['none', 'bearer', 'cloudflare'], true)
             && (filled($setting->username) || filled($setting->password))) {
             return $pending->withBasicAuth((string) $setting->username, (string) $setting->password);
         }
@@ -183,7 +240,7 @@ class SystemOneClient
     private function withModel(?string $body, string $model): string
     {
         if (! filled($body)) {
-            return json_encode(['model' => $model], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            return json_encode(['model' => $this->normalizeModelForPayload($model)], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         }
 
         if (! json_validate($body)) {
@@ -239,9 +296,14 @@ class SystemOneClient
 
             return ! property_exists($value, 'model');
         });
-        $properties[] = '"model":'.json_encode($model, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $properties[] = '"model":'.json_encode($this->normalizeModelForPayload($model), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         return '{'.implode(',', $properties).'}';
+    }
+
+    public function normalizeModelForPayload(string $model): string
+    {
+        return str_starts_with($model, '@cf/') ? basename($model) : $model;
     }
 
     private function endpoint(string $baseUrl, string $path): string

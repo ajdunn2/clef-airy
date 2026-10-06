@@ -10,13 +10,11 @@
     <p class="break-all font-mono text-xs text-muted">{{ $result['url'] }}</p>
 
     @php
-        $meta = array_values(array_filter([
-            $result['decision']['usage'] ?? null,
-            $result['duration'] ?? null,
-            isset($result['questions_count']) && $result['questions_count'] !== null
-                ? $result['questions_count'].' '.\Illuminate\Support\Str::plural('question', $result['questions_count']).' sent'
-                : null,
-        ]));
+        $usage = $result['decision']['usage'] ?? null;
+        $duration = $result['duration'] ?? null;
+        $questionsCount = isset($result['questions_count']) && $result['questions_count'] !== null
+            ? $result['questions_count'].' '.\Illuminate\Support\Str::plural('question', $result['questions_count']).' sent'
+            : null;
     @endphp
 
     <div data-switch class="grid gap-3">
@@ -86,7 +84,26 @@
             <pre data-highlight-json class="max-h-[28rem] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-canvas p-3 font-mono text-[13px]">{{ $result['pretty'] ?? $result['body'] }}</pre>
         </div>
     </div>
-    @if ($meta !== [])
-        <p class="text-[13px] text-muted">{{ implode(' · ', $meta) }}</p>
+    @if ($usage || $duration || $questionsCount)
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted">
+            @if ($usage)
+                <span class="inline-flex items-center gap-1.5">
+                    <x-lucide-playing-cards-fan class="size-3.5 shrink-0" aria-hidden="true" />
+                    <span>{{ $usage }}</span>
+                </span>
+            @endif
+            @if ($duration)
+                <span class="inline-flex items-center gap-1.5">
+                    <x-lucide-timer class="size-3.5 shrink-0" aria-hidden="true" />
+                    <span>{{ $duration }}</span>
+                </span>
+            @endif
+            @if ($questionsCount)
+                <span class="inline-flex items-center gap-1.5">
+                    <x-lucide-message-circle-question-mark class="size-3.5 shrink-0" aria-hidden="true" />
+                    <span>{{ $questionsCount }}</span>
+                </span>
+            @endif
+        </div>
     @endif
 </div>

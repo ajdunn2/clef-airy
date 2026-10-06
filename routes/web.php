@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', [ConfigurationController::class, 'edit'])->name('configuration.edit');
 Route::put('/configuration', [ConfigurationController::class, 'update'])->name('configuration.update');
+Route::put('/configuration/defaults', [ConfigurationController::class, 'updateDefaults'])->name('configuration.defaults.update');
 
 Route::get('/run', [RunController::class, 'create'])->name('run.create');
 Route::get('/run/example', [RunController::class, 'create'])->name('run.example');
