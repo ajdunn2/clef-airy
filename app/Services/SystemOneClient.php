@@ -22,24 +22,39 @@ class SystemOneClient
     ];
 
     /**
-     * @return array{models: list<string>, fromApi: bool, error: ?string}
+     * Workers AI models whose input schema accepts images. The payload uses the basename.
+     *
+     * @var list<string>
+     */
+    public const CLOUDFLARE_VISION_MODELS = [
+        '@cf/cloudflare/clef-flash',
+        '@cf/cloudflare/clef',
+    ];
+
+    /**
+     * @return array{models: list<string>, vision: list<string>, fromApi: bool, error: ?string}
      */
     public function models(?string $baseUrl, ?string $selected = null, ?string $authType = null): array
     {
         if (! filled($baseUrl) && $authType !== 'cloudflare') {
-            return ['models' => [], 'fromApi' => false, 'error' => null];
+            return ['models' => [], 'vision' => [], 'fromApi' => false, 'error' => null];
         }
 
         if ($this->isCloudflare($baseUrl, $authType)) {
-            return ['models' => self::CLOUDFLARE_MODELS, 'fromApi' => false, 'error' => null];
+            return [
+                'models' => self::CLOUDFLARE_MODELS,
+                'vision' => self::CLOUDFLARE_VISION_MODELS,
+                'fromApi' => false,
+                'error' => null,
+            ];
         }
 
         try {
             $installed = $this->installedModels($baseUrl);
         } catch (InvalidArgumentException $exception) {
-            return ['models' => [], 'fromApi' => false, 'error' => $exception->getMessage()];
+            return ['models' => [], 'vision' => [], 'fromApi' => false, 'error' => $exception->getMessage()];
         }
-        $names = $installed ?? ($this->isTypeSafe($baseUrl) ? ['jev-latest', 'jev-preview'] : ['clef-flash', 'clef']);
+        $names = $installed['names'] ?? ($this->isTypeSafe($baseUrl) ? ['jev-latest', 'jev-preview'] : ['clef-flash', 'clef']);
         $selected = filled($selected) ? $this->modelForApi($baseUrl, $selected, $authType) : null;
 
         if (filled($selected) && ! in_array($selected, $names, true) && $installed === null) {
@@ -48,6 +63,7 @@ class SystemOneClient
 
         return [
             'models' => array_values(array_unique($names)),
+            'vision' => $installed['vision'] ?? [],
             'fromApi' => $installed !== null,
             'error' => null,
         ];
@@ -132,6 +148,10 @@ class SystemOneClient
             $body = $this->withModel($body, $model);
         }
 
+        if ($this->isCloudflare($baseUrl, $setting->auth_type) && filled($body) && $this->acceptsCloudflareImages($model)) {
+            $body = $this->embedCloudflareImages($body);
+        }
+
         if (filled($body)) {
             $contentType = json_validate($body) ? 'application/json' : 'text/plain';
             $pending = $pending->withBody($body, $contentType);
@@ -152,7 +172,7 @@ class SystemOneClient
     }
 
     /**
-     * @return list<string>|null
+     * @return array{names: list<string>, vision: list<string>}|null
      */
     private function installedModels(?string $baseUrl): ?array
     {
@@ -182,6 +202,7 @@ class SystemOneClient
         }
 
         $names = [];
+        $vision = [];
 
         foreach ($response->json('models') as $model) {
             if (! is_array($model)) {
@@ -200,13 +221,20 @@ class SystemOneClient
             }
 
             $names[] = $name;
+
+            if (is_array($capabilities) && in_array('vision', $capabilities, true)) {
+                $vision[] = $name;
+            }
         }
 
         if ($names === []) {
             throw new InvalidArgumentException('The API returned no available decision models.');
         }
 
-        return array_values(array_unique($names));
+        return [
+            'names' => array_values(array_unique($names)),
+            'vision' => array_values(array_unique($vision)),
+        ];
     }
 
     protected function shouldLookupModels(): bool
@@ -299,6 +327,166 @@ class SystemOneClient
         $properties[] = '"model":'.json_encode($this->normalizeModelForPayload($model), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         return '{'.implode(',', $properties).'}';
+    }
+
+    private function dataUri(string $image): string
+    {
+        if (preg_match('/^data:/i', $image) === 1) {
+            return $image;
+        }
+
+        $mime = $this->imageMime($image);
+
+        if ($mime === null) {
+            return $image;
+        }
+
+        return 'data:'.$mime.';base64,'.$image;
+    }
+
+    private function imageMime(string $image): ?string
+    {
+        $bytes = base64_decode(substr($image, 0, 24), true);
+
+        if (! is_string($bytes) || $bytes === '') {
+            return null;
+        }
+
+        if (str_starts_with($bytes, "\x89PNG")) {
+            return 'image/png';
+        }
+
+        if (str_starts_with($bytes, "\xFF\xD8\xFF")) {
+            return 'image/jpeg';
+        }
+
+        if (strlen($bytes) >= 12 && str_starts_with($bytes, 'RIFF') && substr($bytes, 8, 4) === 'WEBP') {
+            return 'image/webp';
+        }
+
+        return null;
+    }
+
+    private function replaceTopLevelProperty(string $body, string $name, string $jsonValue): string
+    {
+        $trimmed = trim($body);
+        $content = substr($trimmed, 1, -1);
+        $properties = [];
+        $start = 0;
+        $depth = 0;
+        $quoted = false;
+        $escaped = false;
+
+        for ($index = 0; $index < strlen($content); $index++) {
+            $character = $content[$index];
+
+            if ($quoted) {
+                if ($escaped) {
+                    $escaped = false;
+                } elseif ($character === '\\') {
+                    $escaped = true;
+                } elseif ($character === '"') {
+                    $quoted = false;
+                }
+
+                continue;
+            }
+
+            if ($character === '"') {
+                $quoted = true;
+            } elseif ($character === '{' || $character === '[') {
+                $depth++;
+            } elseif ($character === '}' || $character === ']') {
+                $depth--;
+            } elseif ($character === ',' && $depth === 0) {
+                $properties[] = substr($content, $start, $index - $start);
+                $start = $index + 1;
+            }
+        }
+
+        if (trim($content) !== '') {
+            $properties[] = substr($content, $start);
+        }
+
+        foreach ($properties as $index => $property) {
+            $value = json_decode('{'.$property.'}');
+
+            if (is_object($value) && property_exists($value, $name)) {
+                $properties[$index] = '"'.$name.'":'.$jsonValue;
+            }
+        }
+
+        return '{'.implode(',', $properties).'}';
+    }
+
+    /**
+     * Workers AI Clef accepts an image only from the models in CLOUDFLARE_VISION_MODELS.
+     */
+    public function acceptsCloudflareImages(?string $model): bool
+    {
+        if (! is_string($model) || trim($model) === '') {
+            return false;
+        }
+
+        $model = trim($model);
+
+        if (in_array($model, self::CLOUDFLARE_VISION_MODELS, true)) {
+            return true;
+        }
+
+        if (str_contains($model, '/')) {
+            return false;
+        }
+
+        $payloadNames = array_map(
+            fn (string $name): string => $this->normalizeModelForPayload($name),
+            self::CLOUDFLARE_VISION_MODELS,
+        );
+
+        return in_array($model, $payloadNames, true);
+    }
+
+    /**
+     * Workers AI accepts an image as a data URI. Ollama accepts the raw base64 only.
+     */
+    public function embedCloudflareImages(string $body): string
+    {
+        if (! json_validate($body)) {
+            return $body;
+        }
+
+        $decoded = json_decode($body);
+
+        if (! is_object($decoded) || ! isset($decoded->images) || ! is_array($decoded->images)) {
+            return $body;
+        }
+
+        $images = [];
+        $changed = false;
+
+        foreach ($decoded->images as $image) {
+            if (! is_string($image)) {
+                $images[] = $image;
+
+                continue;
+            }
+
+            $embedded = $this->dataUri($image);
+            $changed = $changed || $embedded !== $image;
+            $images[] = $embedded;
+        }
+
+        if (! $changed) {
+            return $body;
+        }
+
+        $encoded = json_encode($images, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        if ($encoded === false) {
+            return $body;
+        }
+
+        return $this->replaceTopLevelProperty($body, 'images', $encoded);
     }
 
     public function normalizeModelForPayload(string $model): string

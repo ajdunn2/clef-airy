@@ -203,7 +203,7 @@ class SystemOneConfigurationTest extends TestCase
         $models = $client->models($setting->base_url, $setting->model);
         $client->send($setting, 'POST', '/v1/systemone', '{"state":"Support needed.","questions":{}}', $setting->model);
 
-        $this->assertSame(['models' => ['jev-latest'], 'fromApi' => true, 'error' => null], $models);
+        $this->assertSame(['models' => ['jev-latest'], 'vision' => [], 'fromApi' => true, 'error' => null], $models);
         $this->assertNotSame('test-api-key', $setting->getRawOriginal('password'));
         $this->get(route('configuration.edit'))->assertOk()->assertDontSee('test-api-key');
         Http::assertSentCount(2);
@@ -636,6 +636,33 @@ class SystemOneConfigurationTest extends TestCase
         Http::assertSentCount(1);
         $this->assertTrue($models['fromApi']);
         $this->assertSame(['clef-flash:latest'], $models['models']);
+        $this->assertSame([], $models['vision']);
+    }
+
+    public function test_model_lookup_marks_models_that_list_vision(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([
+            'http://localhost:11434/api/tags' => Http::response([
+                'models' => [
+                    ['name' => 'clef-flash:latest', 'capabilities' => ['decision', 'vision']],
+                    ['name' => 'nimble:9b', 'capabilities' => ['decision']],
+                ],
+            ]),
+        ]);
+
+        $client = new class extends SystemOneClient
+        {
+            protected function shouldLookupModels(): bool
+            {
+                return true;
+            }
+        };
+
+        $models = $client->models('http://localhost:11434');
+
+        $this->assertSame(['clef-flash:latest', 'nimble:9b'], $models['models']);
+        $this->assertSame(['clef-flash:latest'], $models['vision']);
     }
 
     public function test_configuration_page_renders_presets_for_ollama_and_typesafe(): void

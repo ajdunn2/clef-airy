@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\RunController;
+use App\Services\SystemOneClient;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -336,6 +338,297 @@ class RunWorkspaceTest extends TestCase
             'request' => ['state' => 'Hello', 'model' => 'clef-flash'],
             'response' => ['ok' => true],
         ], json_decode($response->streamedContent(), true));
+    }
+
+    public function test_a_form_request_sends_dropped_images_as_base64(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['http://api.example.test/*' => Http::response('{}')]);
+        $this->put('/configuration', ['api_url' => 'http://api.example.test']);
+        $png = $this->pngUpload();
+
+        $this->withHeader('Accept', 'application/json')->post('/run', [
+            'method' => 'POST',
+            'path' => '/v1/systemone',
+            'body_mode' => 'form',
+            'state' => 'A screenshot of checkout.',
+            'questions' => [[
+                'name' => 'shown',
+                'type' => 'noul',
+                'instructions' => 'Does this show a checkout error?',
+            ]],
+            'images' => [$png],
+        ])->assertOk();
+
+        $encoded = base64_encode($png->getContent());
+        Http::assertSent(function ($request) use ($encoded): bool {
+            $body = json_decode($request->body(), true);
+
+            return is_array($body)
+                && $body['images'] === [$encoded]
+                && ! str_contains($request->body(), 'data:image');
+        });
+    }
+
+    public function test_workers_ai_sends_images_as_data_uris(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://api.cloudflare.com/*' => Http::response(['success' => true, 'result' => ['answers' => []]]),
+        ]);
+        $this->put('/configuration', [
+            'api_url' => 'https://api.cloudflare.com/client/v4/accounts/test-acc/ai/run',
+            'auth_type' => 'bearer',
+            'password' => 'cf-token',
+            'model' => '@cf/cloudflare/clef-flash',
+        ]);
+        $png = $this->pngUpload();
+        $encoded = base64_encode($png->getContent());
+
+        $this->withHeader('Accept', 'application/json')->post('/run', [
+            'method' => 'POST',
+            'path' => '/@cf/cloudflare/clef-flash',
+            'model' => '@cf/cloudflare/clef-flash',
+            'body_mode' => 'form',
+            'state' => '{"id":9007199254740993}',
+            'questions' => [[
+                'name' => 'shown',
+                'type' => 'noul',
+                'instructions' => 'Does this show a checkout error?',
+            ]],
+            'images' => [$png],
+        ])->assertOk();
+
+        Http::assertSent(function ($request) use ($encoded): bool {
+            $body = json_decode($request->body(), true);
+
+            return is_array($body)
+                && $body['images'] === ['data:image/png;base64,'.$encoded]
+                && str_contains($request->body(), '9007199254740993')
+                && $request->url() === 'https://api.cloudflare.com/client/v4/accounts/test-acc/ai/run/@cf/cloudflare/clef-flash';
+        });
+    }
+
+    public function test_cloudflare_image_embedding_wraps_raw_bytes_and_leaves_data_uris(): void
+    {
+        $client = new SystemOneClient;
+        $png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+        $jpeg = base64_encode("\xFF\xD8\xFF\xE0");
+        $webp = base64_encode("RIFF\x00\x00\x00\x00WEBP");
+        $body = '{"state":9007199254740993,"images":'.json_encode([$png, $jpeg, $webp, 'data:image/png;base64,abc']).'}';
+
+        $embedded = $client->embedCloudflareImages($body);
+        $images = json_decode($embedded, true)['images'];
+
+        $this->assertSame('data:image/png;base64,'.$png, $images[0]);
+        $this->assertSame('data:image/jpeg;base64,'.$jpeg, $images[1]);
+        $this->assertSame('data:image/webp;base64,'.$webp, $images[2]);
+        $this->assertSame('data:image/png;base64,abc', $images[3]);
+        $this->assertStringContainsString('9007199254740993', $embedded);
+        $this->assertSame($embedded, $client->embedCloudflareImages($embedded));
+    }
+
+    public function test_a_request_rejects_an_image_that_is_not_png_jpeg_or_webp(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake();
+        $this->put('/configuration', ['api_url' => 'http://api.example.test']);
+
+        $this->withHeader('Accept', 'application/json')->post('/run', [
+            'method' => 'POST',
+            'path' => '/v1/systemone',
+            'body_mode' => 'form',
+            'state' => 'A screenshot of checkout.',
+            'questions' => [[
+                'name' => 'shown',
+                'type' => 'noul',
+                'instructions' => 'Does this show a checkout error?',
+            ]],
+            'images' => [UploadedFile::fake()->createWithContent('anim.gif', "GIF89a\x01\x00\x01\x00")],
+        ])->assertUnprocessable()->assertJsonValidationErrors([
+            'images.0' => 'Use a PNG, JPEG, or WebP image.',
+        ]);
+
+        Http::assertNothingSent();
+    }
+
+    public function test_json_requests_keep_an_images_key_and_otherwise_append_files(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['http://api.example.test/*' => Http::response('{}')]);
+        $this->put('/configuration', ['api_url' => 'http://api.example.test']);
+        $png = $this->pngUpload();
+        $encoded = base64_encode($png->getContent());
+
+        $this->withHeader('Accept', 'application/json')->post('/run', [
+            'method' => 'POST',
+            'path' => '/v1/systemone',
+            'body_mode' => 'json',
+            'body' => '{"state":"Hello","images":["kept"],"questions":{"shown":{"type":"noul","instructions":"See it?"}}}',
+            'images' => [$png],
+        ])->assertOk();
+
+        Http::assertSent(fn ($request): bool => json_decode($request->body(), true)['images'] === ['kept']);
+
+        $this->withHeader('Accept', 'application/json')->post('/run', [
+            'method' => 'POST',
+            'path' => '/v1/systemone',
+            'body_mode' => 'json',
+            'body' => '{"state":9007199254740993,"questions":{"shown":{"type":"noul","instructions":"See it?"}}}',
+            'images' => [$png],
+        ])->assertOk();
+
+        Http::assertSent(fn ($request): bool => str_contains($request->body(), '9007199254740993')
+            && json_decode($request->body(), true)['images'] === [$encoded]);
+    }
+
+    public function test_download_includes_images_unless_the_request_already_has_them(): void
+    {
+        Http::preventStrayRequests();
+        $png = $this->pngUpload();
+        $encoded = base64_encode($png->getContent());
+
+        $added = $this->post('/run/download', [
+            'request' => '{"state":"Hello"}',
+            'response' => '{"ok":true}',
+            'images' => [$png],
+        ]);
+
+        $added->assertDownload('request-response.json');
+        $document = json_decode($added->streamedContent(), true);
+        $this->assertSame('Hello', $document['request']['state']);
+        $this->assertSame([$encoded], $document['request']['images']);
+
+        $kept = $this->post('/run/download', [
+            'request' => '{"state":"Hello","images":["kept"]}',
+            'response' => '{"ok":true}',
+            'images' => [$png],
+        ]);
+
+        $kept->assertDownload('request-response.json');
+        $this->assertSame(['kept'], json_decode($kept->streamedContent(), true)['request']['images']);
+    }
+
+    public function test_workers_ai_keeps_raw_images_unless_the_model_accepts_them(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://api.cloudflare.com/*' => Http::response(['success' => true, 'result' => ['answers' => []]]),
+        ]);
+        $this->put('/configuration', [
+            'api_url' => 'https://api.cloudflare.com/client/v4/accounts/test-acc/ai/run',
+            'auth_type' => 'bearer',
+            'password' => 'cf-token',
+            'model' => 'typesafe/jev',
+        ]);
+        $png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+        $this->withHeader('Accept', 'application/json')->post('/run', [
+            'method' => 'POST',
+            'path' => '/',
+            'model' => 'typesafe/jev',
+            'body_mode' => 'json',
+            'body' => '{"state":"Hello","images":['.json_encode($png).'],"questions":{"shown":{"type":"noul","instructions":"See it?"}}}',
+        ])->assertOk();
+
+        Http::assertSent(function ($request) use ($png): bool {
+            $body = json_decode($request->body(), true);
+
+            return is_array($body)
+                && ($body['input']['images'] ?? null) === [$png]
+                && ! str_contains($request->body(), 'data:image');
+        });
+    }
+
+    public function test_download_uses_data_uris_for_workers_ai(): void
+    {
+        Http::preventStrayRequests();
+        $this->put('/configuration', [
+            'api_url' => 'https://api.cloudflare.com/client/v4/accounts/test-acc/ai/run',
+            'auth_type' => 'bearer',
+            'password' => 'cf-token',
+            'model' => '@cf/cloudflare/clef-flash',
+        ]);
+        $png = $this->pngUpload();
+        $encoded = base64_encode($png->getContent());
+
+        $response = $this->post('/run/download', [
+            'request' => '{"state":"Hello","model":"clef-flash"}',
+            'response' => '{"ok":true}',
+            'images' => [$png],
+        ]);
+
+        $response->assertDownload('request-response.json');
+        $this->assertSame(
+            ['data:image/png;base64,'.$encoded],
+            json_decode($response->streamedContent(), true)['request']['images'],
+        );
+
+        $fullId = $this->post('/run/download', [
+            'request' => '{"state":"Hello","model":"@cf/cloudflare/clef"}',
+            'response' => '{"ok":true}',
+            'images' => [$this->pngUpload()],
+        ]);
+        $this->assertSame(
+            ['data:image/png;base64,'.$encoded],
+            json_decode($fullId->streamedContent(), true)['request']['images'],
+        );
+
+        $partner = $this->post('/run/download', [
+            'request' => '{"state":"Hello","model":"typesafe/jev"}',
+            'response' => '{"ok":true}',
+            'images' => [$this->pngUpload()],
+        ]);
+        $this->assertSame([$encoded], json_decode($partner->streamedContent(), true)['request']['images']);
+
+        $other = $this->post('/run/download', [
+            'request' => '{"state":"Hello","model":"@cf/meta/llama-3.2-11b-vision-instruct"}',
+            'response' => '{"ok":true}',
+            'images' => [$this->pngUpload()],
+        ]);
+        $this->assertSame([$encoded], json_decode($other->streamedContent(), true)['request']['images']);
+    }
+
+    public function test_run_page_marks_models_that_can_read_images(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([
+            'http://localhost:11434/api/tags' => Http::response([
+                'models' => [
+                    ['name' => 'clef-flash:latest', 'capabilities' => ['decision', 'vision']],
+                    ['name' => 'nimble:9b', 'capabilities' => ['decision']],
+                ],
+            ]),
+        ]);
+        $this->app->bind(SystemOneClient::class, function () {
+            return new class extends SystemOneClient
+            {
+                protected function shouldLookupModels(): bool
+                {
+                    return true;
+                }
+            };
+        });
+        $this->put('/configuration', [
+            'api_url' => 'http://localhost:11434',
+            'auth_type' => 'none',
+            'model' => 'clef-flash:latest',
+        ]);
+
+        $response = $this->get('/run');
+
+        $response->assertOk();
+        $this->assertMatchesRegularExpression('/value="clef-flash:latest"[^>]*data-vision="1"/', $response->getContent());
+        $this->assertDoesNotMatchRegularExpression('/value="nimble:9b"[^>]*data-vision/', $response->getContent());
+        $response->assertSee('data-image-drop', false);
+        $response->assertSee('Drop PNG, JPEG, or WebP', false);
+    }
+
+    private function pngUpload(): UploadedFile
+    {
+        $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
+
+        return UploadedFile::fake()->createWithContent('screen.png', $png);
     }
 
     public function test_download_keeps_text_that_is_not_json(): void

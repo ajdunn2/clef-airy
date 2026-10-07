@@ -8,8 +8,9 @@ class SystemOnePayload
 {
     /**
      * @param  list<array<string, mixed>>  $questions
+     * @param  list<string>  $images
      */
-    public function fromForm(string $state, array $questions): string
+    public function fromForm(string $state, array $questions, array $images = []): string
     {
         $built = [];
 
@@ -62,7 +63,64 @@ class SystemOnePayload
             ? $state
             : json_encode($state, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
-        return '{"state":'.$stateJson.',"questions":'.$json.'}';
+        $imagesJson = '';
+
+        if ($images !== []) {
+            $encoded = json_encode(array_values($images), JSON_UNESCAPED_SLASHES);
+
+            if ($encoded === false) {
+                throw new InvalidArgumentException('The images could not be turned into JSON.');
+            }
+
+            $imagesJson = ',"images":'.$encoded;
+        }
+
+        return '{"state":'.$stateJson.$imagesJson.',"questions":'.$json.'}';
+    }
+
+    /**
+     * Raw base64 images shared by every question. An images key already in the JSON is left as written.
+     *
+     * @param  list<string>  $images
+     */
+    public function withImages(?string $body, array $images): ?string
+    {
+        if ($images === []) {
+            return $body;
+        }
+
+        $body ??= '';
+
+        if (! json_validate($body)) {
+            throw new InvalidArgumentException('Images need a JSON object.');
+        }
+
+        $decoded = json_decode($body);
+
+        if (! is_object($decoded)) {
+            throw new InvalidArgumentException('Images need a JSON object.');
+        }
+
+        if (property_exists($decoded, 'images')) {
+            return $body;
+        }
+
+        $encoded = json_encode(array_values($images), JSON_UNESCAPED_SLASHES);
+
+        if ($encoded === false) {
+            throw new InvalidArgumentException('The images could not be turned into JSON.');
+        }
+
+        $trimmed = rtrim($body);
+
+        if (! str_ends_with($trimmed, '}')) {
+            throw new InvalidArgumentException('Images need a JSON object.');
+        }
+
+        $prefix = substr($trimmed, 0, -1);
+        $separator = rtrim($prefix) === '{' ? '' : ',';
+
+        return $prefix.$separator.'"images":'.$encoded.'}';
     }
 
     public function pretty(string $body): string

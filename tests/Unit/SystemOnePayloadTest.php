@@ -325,4 +325,38 @@ class SystemOnePayloadTest extends TestCase
         $this->assertSame([], $view['answers']);
         $this->assertNull($view['usage']);
     }
+
+    public function test_form_payloads_include_images_only_when_some_were_given(): void
+    {
+        $payload = new SystemOnePayload;
+        $question = [[
+            'name' => 'shown',
+            'type' => 'noul',
+            'instructions' => 'Does this show a checkout error?',
+        ]];
+
+        $without = json_decode($payload->fromForm('A screenshot.', $question), true);
+        $this->assertArrayNotHasKey('images', $without);
+
+        $with = $payload->fromForm('A screenshot.', $question, ['abc123']);
+        $this->assertSame(['abc123'], json_decode($with, true)['images']);
+        $this->assertStringContainsString('"images":["abc123"]', $with);
+    }
+
+    public function test_json_images_are_left_in_place_and_missing_images_are_appended(): void
+    {
+        $payload = new SystemOnePayload;
+
+        $this->assertSame('{"state":"Hello","images":["kept"]}', $payload->withImages('{"state":"Hello","images":["kept"]}', ['new']));
+        $this->assertSame('{"state":9007199254740993,"images":["abc"]}', $payload->withImages('{"state":9007199254740993}', ['abc']));
+        $this->assertSame('{"state":"Hello"}', $payload->withImages('{"state":"Hello"}', []));
+    }
+
+    public function test_images_need_a_json_object(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Images need a JSON object.');
+
+        (new SystemOnePayload)->withImages('not json', ['abc']);
+    }
 }

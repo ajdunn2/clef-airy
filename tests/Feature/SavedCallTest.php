@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\SavedCall;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -39,6 +40,31 @@ class SavedCallTest extends TestCase
         $this->assertSame('Night desk', $copy->name);
         $this->assertSame('The night desk is now covered.', $copy->state);
         $this->assertSame('urgent', $copy->questions[0]['name']);
+    }
+
+    public function test_a_bookmark_does_not_store_images(): void
+    {
+        $this->put('/configuration', ['api_url' => 'http://api.example.test']);
+        $png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
+
+        $this->post('/calls', [
+            'name' => 'Shot',
+            'method' => 'POST',
+            'path' => '/v1/systemone',
+            'body_mode' => 'form',
+            'state' => 'A screenshot.',
+            'questions' => [[
+                'name' => 'shown',
+                'type' => 'noul',
+                'instructions' => 'Does this show a checkout error?',
+            ]],
+            'images' => [UploadedFile::fake()->createWithContent('screen.png', $png)],
+        ])->assertRedirect();
+
+        $call = SavedCall::query()->sole();
+        $this->assertSame('A screenshot.', $call->state);
+        $this->assertNull($call->body);
+        $this->assertStringNotContainsString(base64_encode($png), json_encode($call->getAttributes()));
     }
 
     public function test_saving_a_form_call_adds_it_to_the_menu_and_reopens_it(): void

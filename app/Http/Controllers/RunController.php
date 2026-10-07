@@ -201,6 +201,7 @@ class RunController extends Controller
             'prefill' => $this->prefill($savedCall, $isExample, $exampleState, $exampleQuestions, $defaultBody, $defaultPath),
             'model' => $selectedModel,
             'models' => $models['models'],
+            'visionModels' => $models['vision'],
             'modelError' => $models['error'],
         ]);
     }
@@ -277,16 +278,22 @@ class RunController extends Controller
             $rules['body'] = ['nullable', 'string', 'max:150000'];
         }
 
+        $rules['images'] = ['nullable', 'array'];
+        $rules['images.*'] = ['file', 'mimes:jpg,jpeg,png,webp'];
+
         $validated = $request->validate($rules, [
             'method.in' => 'Choose a request method.',
             'path.required' => 'Enter a path.',
             'state.required' => 'Enter the state.',
             'questions.*.levels.max' => 'Score questions allow at most 26 levels.',
+            'images.*.mimes' => 'Use a PNG, JPEG, or WebP image.',
         ]);
+
+        $images = $this->encodedImages($request);
 
         if ($form) {
             try {
-                $body = $payload->fromForm($validated['state'], $validated['questions'] ?? []);
+                $body = $payload->fromForm($validated['state'], $validated['questions'] ?? [], $images);
             } catch (InvalidArgumentException $exception) {
                 throw ValidationException::withMessages([
                     'questions' => $exception->getMessage(),
@@ -294,6 +301,22 @@ class RunController extends Controller
             }
         } else {
             $body = $validated['body'] ?? null;
+
+            if ($images !== []) {
+                try {
+                    $body = $payload->withImages(is_string($body) ? $body : '', $images);
+                } catch (InvalidArgumentException $exception) {
+                    throw ValidationException::withMessages([
+                        'images' => $exception->getMessage(),
+                    ]);
+                }
+            }
+        }
+
+        if ($images !== [] && is_string($body) && strlen($body) > 32 * 1024 * 1024) {
+            throw ValidationException::withMessages([
+                'images' => 'Images must fit in a 32 MB request.',
+            ]);
         }
 
         $model = array_key_exists('model', $validated) ? $validated['model'] : $setting->model;
@@ -355,16 +378,46 @@ class RunController extends Controller
             ]);
     }
 
-    public function download(Request $request): JsonResponse|StreamedResponse
+    public function download(Request $request, SystemOnePayload $payload, SystemOneClient $client): JsonResponse|StreamedResponse
     {
         $validated = $request->validate([
             'request' => ['nullable', 'string', 'max:500000'],
             'response' => ['present', 'string', 'max:500000'],
+            'images' => ['nullable', 'array'],
+            'images.*' => ['file', 'mimes:jpg,jpeg,png,webp'],
+        ], [
+            'images.*.mimes' => 'Use a PNG, JPEG, or WebP image.',
         ]);
+
+        $requestBody = $validated['request'] ?? null;
+        $images = $this->encodedImages($request);
+
+        if ($images !== []) {
+            try {
+                $requestBody = $payload->withImages(is_string($requestBody) ? $requestBody : '', $images);
+            } catch (InvalidArgumentException $exception) {
+                return response()->json(['message' => $exception->getMessage()], 422);
+            }
+
+            if (strlen((string) $requestBody) > 32 * 1024 * 1024) {
+                return response()->json(['message' => 'Images must fit in a 32 MB request.'], 422);
+            }
+        }
+
+        $setting = SystemOneSetting::current();
+
+        if (is_string($requestBody) && $client->isCloudflare($setting?->base_url, $setting?->auth_type)) {
+            $decoded = json_decode($requestBody);
+            $model = is_object($decoded) ? ($decoded->model ?? $setting?->model) : $setting?->model;
+
+            if ($client->acceptsCloudflareImages(is_string($model) ? $model : null)) {
+                $requestBody = $client->embedCloudflareImages($requestBody);
+            }
+        }
 
         try {
             $document = json_encode([
-                'request' => $this->jsonValue($validated['request'] ?? null),
+                'request' => $this->jsonValue(is_string($requestBody) ? $requestBody : null),
                 'response' => $this->jsonValue($validated['response']),
             ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)."\n";
         } catch (JsonException) {
@@ -398,6 +451,24 @@ class RunController extends Controller
         }
 
         return response()->json(['saved' => true]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function encodedImages(Request $request): array
+    {
+        $encoded = [];
+
+        foreach ($request->file('images', []) as $file) {
+            if ($file === null) {
+                continue;
+            }
+
+            $encoded[] = base64_encode($file->getContent());
+        }
+
+        return $encoded;
     }
 
     private function jsonValue(?string $value): mixed

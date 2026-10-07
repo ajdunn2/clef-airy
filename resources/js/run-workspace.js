@@ -1,4 +1,5 @@
 import { withSelectedModel } from './run-form-json.js';
+import { imageKind, withinImageBudget } from './run-images.js';
 
 export default () => ({
     sending: false,
@@ -7,8 +8,22 @@ export default () => ({
     hasResponse: false,
     downloading: false,
     copied: '',
+    vision: false,
+    images: [],
+    imageError: '',
+    imageDrag: false,
+    imageId: 0,
 
     init() {
+        this.syncVision();
+        const stopFileNavigation = (event) => {
+            if ([...(event.dataTransfer?.types ?? [])].includes('Files')) {
+                event.preventDefault();
+            }
+        };
+        window.addEventListener('dragover', stopFileNavigation);
+        window.addEventListener('drop', stopFileNavigation);
+        window.addEventListener('model-chosen', () => this.syncVision());
         this.$nextTick(() => {
             this.hasResponse = Boolean(this.$refs.response?.querySelector('[data-response-body]'));
 
@@ -16,6 +31,81 @@ export default () => ({
                 this.openBookmark();
             }
         });
+    },
+
+    syncVision() {
+        const selected = document.getElementById('model')?.selectedOptions?.[0];
+        this.vision = selected?.dataset.vision === '1';
+    },
+
+    async addImages(fileList) {
+        this.imageError = '';
+        let used = this.images.reduce((sum, image) => sum + image.file.size, 0);
+
+        for (const file of [...(fileList ?? [])]) {
+            const kind = imageKind(new Uint8Array(await file.slice(0, 12).arrayBuffer()));
+
+            if (kind === null) {
+                this.imageError = 'Use a PNG, JPEG, or WebP image.';
+                continue;
+            }
+
+            if (! withinImageBudget(used, file.size)) {
+                this.imageError = 'Images must fit in a 32 MB request.';
+                continue;
+            }
+
+            used += file.size;
+            this.images.push({
+                id: ++this.imageId,
+                name: file.name,
+                url: URL.createObjectURL(file),
+                file,
+            });
+        }
+    },
+
+    moveImage(index, direction) {
+        const next = index + direction;
+
+        if (next < 0 || next >= this.images.length) {
+            return;
+        }
+
+        const copy = this.images.slice();
+        const [item] = copy.splice(index, 1);
+        copy.splice(next, 0, item);
+        this.images = copy;
+    },
+
+    removeImage(index) {
+        const [removed] = this.images.splice(index, 1);
+
+        if (removed?.url) {
+            URL.revokeObjectURL(removed.url);
+        }
+    },
+
+    filesToSend() {
+        if (! this.vision || this.images.length === 0 || this.requestHasImages()) {
+            return [];
+        }
+
+        return this.images;
+    },
+
+    requestHasImages() {
+        if (! document.querySelector('input[name="body_mode"][value="json"]:checked')) {
+            return false;
+        }
+
+        try {
+            const body = JSON.parse(document.getElementById('body')?.value ?? '');
+
+            return body !== null && typeof body === 'object' && ! Array.isArray(body) && Object.hasOwn(body, 'images');
+        } catch {
+            return false;
+        }
     },
 
     openBookmark() {
@@ -56,6 +146,11 @@ export default () => ({
 
         const form = this.$refs.form;
         const body = new FormData(form);
+
+        for (const image of this.filesToSend()) {
+            body.append('images[]', image.file, image.name);
+        }
+
         this.sending = true;
         this.error = '';
         this.feedback = '';
@@ -134,6 +229,14 @@ export default () => ({
 
         const button = document.querySelector('[data-download-exchange]');
         const token = this.$refs.form?.querySelector('input[name="_token"]')?.value ?? '';
+        const payload = new FormData();
+        payload.append('request', requestBody);
+        payload.append('response', responseBody);
+
+        for (const image of this.filesToSend()) {
+            payload.append('images[]', image.file, image.name);
+        }
+
         this.downloading = true;
         this.feedback = '';
 
@@ -143,14 +246,10 @@ export default () => ({
                 credentials: 'same-origin',
                 headers: {
                     Accept: 'application/json',
-                    'Content-Type': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
                     'X-CSRF-TOKEN': token,
                 },
-                body: JSON.stringify({
-                    request: requestBody,
-                    response: responseBody,
-                }),
+                body: payload,
             });
 
             if (response.status === 419) {

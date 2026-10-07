@@ -31,7 +31,7 @@
                             <option value="" @selected(! filled(old('model', $model)))>Choose a model…</option>
                         @endif
                         @foreach ($models as $name)
-                            <option value="{{ $name }}" @selected(old('model', $model) === $name)>{{ $name }}</option>
+                            <option value="{{ $name }}" @selected(old('model', $model) === $name) @if (in_array($name, $visionModels, true)) data-vision="1" @endif>{{ $name }}</option>
                         @endforeach
                     </select>
                     @if ($modelError)
@@ -197,6 +197,38 @@
                             <span data-json-status role="status" class="text-[13px] text-muted"></span>
                         </div>
                         @error('body')
+                            <p class="text-[13px] text-red-700">{{ $message }}</p>
+                        @enderror
+                    </div>
+
+                    <div x-show="vision" x-cloak data-images class="grid gap-2">
+                        <div
+                            data-image-drop
+                            class="grid gap-2 rounded-lg border border-dashed border-line bg-field px-3 py-3"
+                            x-on:dragover.prevent="imageDrag = true"
+                            x-on:dragleave.prevent="imageDrag = false"
+                            x-on:drop.prevent="imageDrag = false; addImages($event.dataTransfer.files)"
+                            :class="imageDrag ? 'border-accent' : ''"
+                        >
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-[13px] text-muted">Drop PNG, JPEG, or WebP</span>
+                                <button type="button" class="inline-flex items-center gap-1 rounded-lg border border-line bg-white px-3 py-1.5 text-[13px] font-medium transition-colors hover:border-ink/20 hover:bg-canvas" x-on:click="$refs.imageFiles.click()"><x-lucide-image-up class="size-4 shrink-0" aria-hidden="true" />Choose images</button>
+                                <input x-ref="imageFiles" type="file" accept="image/png,image/jpeg,image/webp" multiple class="sr-only" x-on:change="addImages($event.target.files); $event.target.value = ''">
+                            </div>
+                            <ul class="grid gap-2" x-show="images.length" x-cloak>
+                                <template x-for="(image, index) in images" :key="image.id">
+                                    <li class="flex items-center gap-2">
+                                        <img :src="image.url" alt="" class="size-10 shrink-0 rounded border border-line object-cover">
+                                        <span class="min-w-0 flex-1 truncate text-[13px]" x-text="image.name"></span>
+                                        <button type="button" x-show="images.length > 1" :disabled="index === 0" x-on:click="moveImage(index, -1)" class="rounded p-0.5 text-muted hover:bg-white hover:text-ink disabled:opacity-40" aria-label="Move image up"><x-lucide-chevron-up class="size-3" aria-hidden="true" /></button>
+                                        <button type="button" x-show="images.length > 1" :disabled="index === images.length - 1" x-on:click="moveImage(index, 1)" class="rounded p-0.5 text-muted hover:bg-white hover:text-ink disabled:opacity-40" aria-label="Move image down"><x-lucide-chevron-down class="size-3" aria-hidden="true" /></button>
+                                        <button type="button" x-on:click="removeImage(index)" class="rounded p-0.5 text-muted hover:bg-white hover:text-ink" aria-label="Remove image"><x-lucide-x class="size-3" aria-hidden="true" /></button>
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+                        <p x-show="imageError" x-text="imageError" x-cloak role="alert" class="text-[13px] text-red-700"></p>
+                        @error('images')
                             <p class="text-[13px] text-red-700">{{ $message }}</p>
                         @enderror
                     </div>
