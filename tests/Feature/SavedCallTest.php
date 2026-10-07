@@ -192,6 +192,27 @@ class SavedCallTest extends TestCase
         $this->get('/run')->assertDontSee('Night desk')->assertSee('Removed.');
     }
 
+    public function test_a_bookmark_with_27_score_levels_is_rejected(): void
+    {
+        $this->put('/configuration', ['api_url' => 'http://api.example.test']);
+
+        $this->followingRedirects()->from('/run')->post('/calls', [
+            'name' => 'Wide rubric',
+            'method' => 'POST',
+            'path' => '/v1/systemone',
+            'body_mode' => 'form',
+            'state' => 'Support needed.',
+            'questions' => [[
+                'name' => 'severity',
+                'type' => 'score',
+                'instructions' => 'How severe?',
+                'levels' => array_map(fn (int $index): string => 'Level '.$index, range(1, 27)),
+            ]],
+        ])->assertOk()->assertSee('Score questions allow at most 26 levels.');
+
+        $this->assertDatabaseCount('saved_calls', 0);
+    }
+
     public function test_a_call_without_a_name_is_rejected(): void
     {
         $this->put('/configuration', ['api_url' => 'http://api.example.test']);

@@ -176,6 +176,9 @@ class SystemOnePayload
         return true;
     }
 
+    /**
+     * Objects and arrays stay structured. The word null stays the string "null".
+     */
     private function contentValue(string $content): mixed
     {
         if (! json_validate($content)) {
@@ -184,7 +187,7 @@ class SystemOnePayload
 
         $decoded = json_decode($content);
 
-        return is_object($decoded) || is_array($decoded) || $decoded === null ? $decoded : $content;
+        return is_object($decoded) || is_array($decoded) ? $decoded : $content;
     }
 
     /**
@@ -204,11 +207,11 @@ class SystemOnePayload
             $criteria = [];
 
             if ($true !== '') {
-                $criteria['true'] = $this->contentValue($true);
+                $criteria['true'] = $true;
             }
 
             if ($false !== '') {
-                $criteria['false'] = $this->contentValue($false);
+                $criteria['false'] = $false;
             }
 
             return $criteria;
@@ -235,7 +238,7 @@ class SystemOnePayload
                 }
 
                 $description = trim((string) ($option['description'] ?? ''));
-                $criteria[$name] = $description === '' ? null : $this->contentValue($description);
+                $criteria[$name] = $description === '' ? null : $description;
             }
 
             if ($criteria === []) {
@@ -254,7 +257,7 @@ class SystemOnePayload
                         throw new InvalidArgumentException('Option names must be unique.');
                     }
 
-                    $criteria[$name] = $description === '' ? null : $this->contentValue($description);
+                    $criteria[$name] = $description === '' ? null : $description;
                 }
             }
 
@@ -271,7 +274,7 @@ class SystemOnePayload
             $level = trim((string) $level);
 
             if ($level !== '') {
-                $levels[] = $this->contentValue($level);
+                $levels[] = $level;
             }
         }
 
@@ -281,6 +284,10 @@ class SystemOnePayload
 
         if (count($levels) < 2) {
             throw new InvalidArgumentException('Score questions need at least two levels, lowest first.');
+        }
+
+        if (count($levels) > 26) {
+            throw new InvalidArgumentException('Score questions allow at most 26 levels.');
         }
 
         return $levels;

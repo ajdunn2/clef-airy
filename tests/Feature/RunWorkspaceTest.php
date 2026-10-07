@@ -183,6 +183,53 @@ class RunWorkspaceTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_a_score_question_with_27_levels_is_rejected_before_sending(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake();
+        $this->put('/configuration', ['api_url' => 'http://api.example.test']);
+
+        $this->postJson('/run', [
+            'method' => 'POST',
+            'path' => '/v1/systemone',
+            'body_mode' => 'form',
+            'state' => 'Support needed.',
+            'questions' => [[
+                'name' => 'severity',
+                'type' => 'score',
+                'instructions' => 'How severe?',
+                'levels' => array_map(fn (int $index): string => 'Level '.$index, range(1, 27)),
+            ]],
+        ])->assertUnprocessable()->assertJsonValidationErrors([
+            'questions.0.levels' => 'Score questions allow at most 26 levels.',
+        ]);
+
+        Http::assertNothingSent();
+    }
+
+    public function test_a_score_question_with_26_levels_is_sent(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake(['http://api.example.test/*' => Http::response('{"ok":true}')]);
+        $this->put('/configuration', ['api_url' => 'http://api.example.test']);
+        $levels = array_map(fn (int $index): string => 'Level '.$index, range(1, 26));
+
+        $this->postJson('/run', [
+            'method' => 'POST',
+            'path' => '/v1/systemone',
+            'body_mode' => 'form',
+            'state' => 'Support needed.',
+            'questions' => [[
+                'name' => 'severity',
+                'type' => 'score',
+                'instructions' => 'How severe?',
+                'levels' => $levels,
+            ]],
+        ])->assertOk();
+
+        Http::assertSent(fn ($request): bool => $request['questions']['severity']['criteria'] === $levels);
+    }
+
     public function test_validation_errors_do_not_send_a_request(): void
     {
         Http::preventStrayRequests();

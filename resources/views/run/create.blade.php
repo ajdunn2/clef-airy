@@ -174,6 +174,11 @@
                         @error('questions')
                             <p class="text-[13px] text-red-700">{{ $message }}</p>
                         @enderror
+                        @foreach ($errors->get('questions.*.levels') as $messages)
+                            @foreach ($messages as $message)
+                                <p class="text-[13px] text-red-700">{{ $message }}</p>
+                            @endforeach
+                        @endforeach
 
                         <div class="flex flex-wrap items-center gap-2">
                             <button type="button" data-add-question class="inline-flex items-center gap-1 rounded-lg border border-line bg-white px-3 py-1.5 text-[13px] font-medium disabled:opacity-40"><x-lucide-message-square-plus class="size-4 shrink-0" aria-hidden="true" />Add question</button>

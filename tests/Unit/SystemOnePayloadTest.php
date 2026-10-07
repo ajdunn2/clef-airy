@@ -8,7 +8,7 @@ use PHPUnit\Framework\TestCase;
 
 class SystemOnePayloadTest extends TestCase
 {
-    public function test_structured_content_and_partial_noul_criteria_keep_their_shapes(): void
+    public function test_instructions_stay_structured_and_criteria_stay_text(): void
     {
         $json = (new SystemOnePayload)->fromForm('{"id":9007199254740993,"empty":{}}', [[
             'name' => 'coverage?', 'type' => 'noul',
@@ -16,26 +16,55 @@ class SystemOnePayloadTest extends TestCase
             'true' => '{"meaning":"Coverage needed"}',
             'false' => '',
         ], [
-            'name' => 'team', 'type' => 'choice', 'instructions' => 'Which team?',
+            'name' => 'team', 'type' => 'choice', 'instructions' => 'null',
             'options' => [
                 ['name' => 'customer support', 'description' => '{"covers":["tickets"]}'],
                 ['name' => 'billing', 'description' => ''],
+                ['name' => 'sales', 'description' => 'null'],
             ],
         ], [
             'name' => 'priority', 'type' => 'score', 'instructions' => 'How urgent?',
-            'levels' => ['{"label":"Low"}', '["High","Immediate"]'],
+            'levels' => ['{"label":"Low"}', '["High","Immediate"]', 'null'],
         ]]);
 
         $body = json_decode($json);
         $this->assertStringContainsString('9007199254740993', $json);
         $this->assertInstanceOf(\stdClass::class, $body->state->empty);
         $this->assertSame('Is coverage needed?', $body->questions->{'coverage?'}->instructions->question);
-        $this->assertSame('Coverage needed', $body->questions->{'coverage?'}->criteria->true->meaning);
-        $this->assertFalse(property_exists($body->questions->{'coverage?' }->criteria, 'false'));
-        $this->assertSame(['tickets'], $body->questions->team->criteria->{'customer support'}->covers);
+        $this->assertSame('{"meaning":"Coverage needed"}', $body->questions->{'coverage?'}->criteria->true);
+        $this->assertFalse(property_exists($body->questions->{'coverage?'}->criteria, 'false'));
+        $this->assertSame('{"covers":["tickets"]}', $body->questions->team->criteria->{'customer support'});
         $this->assertNull($body->questions->team->criteria->billing);
-        $this->assertSame('Low', $body->questions->priority->criteria[0]->label);
-        $this->assertSame(['High', 'Immediate'], $body->questions->priority->criteria[1]);
+        $this->assertSame('null', $body->questions->team->criteria->sales);
+        $this->assertSame('null', $body->questions->team->instructions);
+        $this->assertSame(['{"label":"Low"}', '["High","Immediate"]', 'null'], $body->questions->priority->criteria);
+    }
+
+    public function test_a_score_question_with_27_levels_is_rejected(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Score questions allow at most 26 levels.');
+
+        (new SystemOnePayload)->fromForm('Support needed.', [[
+            'name' => 'severity',
+            'type' => 'score',
+            'instructions' => 'How severe?',
+            'levels' => array_map(fn (int $index): string => 'Level '.$index, range(1, 27)),
+        ]]);
+    }
+
+    public function test_a_score_question_with_26_levels_is_built(): void
+    {
+        $levels = array_map(fn (int $index): string => 'Level '.$index, range(1, 26));
+
+        $body = json_decode((new SystemOnePayload)->fromForm('Support needed.', [[
+            'name' => 'severity',
+            'type' => 'score',
+            'instructions' => 'How severe?',
+            'levels' => $levels,
+        ]]), true);
+
+        $this->assertSame($levels, $body['questions']['severity']['criteria']);
     }
 
     public function test_duplicate_choice_names_are_rejected_instead_of_overwritten(): void

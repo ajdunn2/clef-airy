@@ -61,7 +61,7 @@ class SavedCallController extends Controller
             $rules['questions.*.options'] = ['nullable', 'array', 'max:255'];
             $rules['questions.*.options.*.name'] = ['nullable', 'string', 'max:200'];
             $rules['questions.*.options.*.description'] = ['nullable', 'string', 'max:2000'];
-            $rules['questions.*.levels'] = ['nullable', 'array', 'max:32'];
+            $rules['questions.*.levels'] = ['nullable', 'array', 'max:26'];
             $rules['questions.*.levels.*'] = ['nullable', 'string', 'max:200'];
         } else {
             $rules['body'] = ['nullable', 'string', 'max:150000'];
@@ -71,6 +71,7 @@ class SavedCallController extends Controller
             'name.required' => 'Enter a name for this bookmark.',
             'method.in' => 'Choose a request method.',
             'path.required' => 'Enter a path.',
+            'questions.*.levels.max' => 'Score questions allow at most 26 levels.',
         ]);
 
         return [

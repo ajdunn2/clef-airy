@@ -130,6 +130,10 @@ function inspectExisting(existing) {
                 return 'other';
             }
         }
+
+        if (! criteriaIsPlain(question)) {
+            return 'other';
+        }
     }
 
     return 'form';
@@ -270,10 +274,10 @@ function criteriaFor(question) {
 
         const criteria = Object.create(null);
         if (question.true !== '') {
-            criteria.true = contentValue(question.true);
+            criteria.true = question.true;
         }
         if (question.false !== '') {
-            criteria.false = contentValue(question.false);
+            criteria.false = question.false;
         }
 
         return { value: criteria };
@@ -304,7 +308,7 @@ function criteriaFor(question) {
             }
 
             names.add(option.name);
-            criteria[option.name] = option.description === '' ? null : contentValue(option.description);
+            criteria[option.name] = option.description === '' ? null : option.description;
             count += 1;
         }
 
@@ -319,12 +323,16 @@ function criteriaFor(question) {
 
     for (const level of question.levels.values()) {
         if (level !== '') {
-            levels.push(contentValue(level));
+            levels.push(level);
         }
     }
 
     if (levels.length < 2) {
         return { error: 'Score questions need at least two levels, lowest first.' };
+    }
+
+    if (levels.length > 26) {
+        return { error: 'Score questions allow at most 26 levels.' };
     }
 
     return { value: levels };
@@ -350,7 +358,7 @@ export function contentValue(source) {
     try {
         const value = parse(source);
 
-        if (value === null || (typeof value === 'object' && ! isLosslessNumber(value))) {
+        if (value !== null && typeof value === 'object' && ! isLosslessNumber(value)) {
             return value;
         }
     } catch {}
@@ -360,6 +368,32 @@ export function contentValue(source) {
 
 export function formFieldValue(value) {
     return typeof value === 'string' ? value : stringify(value, null, 2);
+}
+
+function criteriaIsPlain(question) {
+    if (! Object.hasOwn(question, 'criteria')) {
+        return true;
+    }
+
+    if (question.type === 'score') {
+        return Array.isArray(question.criteria) && question.criteria.every((level) => typeof level === 'string');
+    }
+
+    if (question.type !== 'noul' && question.type !== 'choice') {
+        return false;
+    }
+
+    if (question.criteria === null || typeof question.criteria !== 'object' || Array.isArray(question.criteria)) {
+        return false;
+    }
+
+    return Object.entries(question.criteria).every(([key, value]) => {
+        if (question.type === 'noul' && key !== 'true' && key !== 'false') {
+            return false;
+        }
+
+        return typeof value === 'string' || (question.type === 'choice' && value === null);
+    });
 }
 
 export function parseFormBody(source) {
@@ -384,20 +418,11 @@ export function formBodyError(body) {
     for (const question of Object.values(body.questions)) {
         if (! object(question) || ! ['noul', 'choice', 'score'].includes(question.type)
             || Object.keys(question).some((key) => ! ['type', 'instructions', 'criteria'].includes(key))
-            || ! content(question.instructions)) {
+            || question.instructions === null || ! content(question.instructions)) {
             return message;
         }
 
-        if (! Object.hasOwn(question, 'criteria')) {
-            continue;
-        }
-
-        if (question.type === 'score') {
-            if (! Array.isArray(question.criteria) || ! question.criteria.every(content)) {
-                return message;
-            }
-        } else if (! object(question.criteria) || ! Object.values(question.criteria).every(content)
-            || (question.type === 'noul' && Object.keys(question.criteria).some((key) => ! ['true', 'false'].includes(key)))) {
+        if (! criteriaIsPlain(question)) {
             return message;
         }
     }
