@@ -52,6 +52,7 @@ Install a decision-capable model on your Ollama server, such as:
 - `tev1`
 - `clef`
 - `clef-flash`
+- `laya`
 
 ![A decision request and its response in Clef Airy.](docs/run.jpg)
 
