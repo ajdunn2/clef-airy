@@ -32,33 +32,35 @@ In **Configuration**, enter your API URL, choose a model, and select an authenti
 
 For [Jev](https://docs.typesafe.ai/api), use `https://api.typesafe.ai`, select `jev-latest`, and choose Bearer authentication. Enter your TypeSafe key in **Password / API key**.
 
-In **Compose a request**, describe a situation and add yes/no, choice, or score questions. Edit the request using the form or JSON, then view the response in Easy or JSON mode. Instructions and criteria can also contain JSON objects and arrays.
+In **Compose a request**, describe a situation and add yes/no, choice, or score questions. Score questions allow up to 26 levels. Edit the request using the form or JSON, then view the response in Easy or JSON mode. State and instructions can be plain text or JSON objects and arrays. Criteria entered on the form are sent as plain text. Criteria already written in the JSON are left as written.
 
-Below each response, the app shows token usage, request duration, and the number of questions sent, each with an icon. You can also download the request and response as JSON.
+When the selected model can read images, you can attach PNG, JPEG, or WebP files by dropping them in or choosing them. Clef, Clef Flash, and Ollama models that report vision show the image control. Thumbnails show the files, and you can reorder or remove them. The images are sent with the state. Ollama receives raw base64. Clef and Clef Flash on Workers AI receive data URIs. Attached images must fit in a 32 MB request. Workers AI also limits Clef and Clef Flash to 4 images and a 13 MB body.
+
+Below each response, the app shows token usage, request duration, and the number of questions sent, each with an icon. You can also download the request and response as JSON (including any attached images).
 
 In **Configuration**, set the yes/no decision threshold (default 50%). It changes the displayed yes/no result only, not the API request or confidence.
 
 For [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/), choose the Cloudflare preset, enter your Account ID and API token, and select one of the supported models:
 
-- `@cf/cloudflare/clef-flash`
-- `@cf/cloudflare/clef`
+- `@cf/cloudflare/clef-flash` (vision-capable)
+- `@cf/cloudflare/clef` (vision-capable)
 - `typesafe/jev`
 
-For local [Ollama](https://ollama.com), the default URL is `http://localhost:11434`. Choose None if your server does not require credentials. The app loads Ollama models from `GET /api/tags` and uses `GET /v1/models` for Jev and Bearer connections. Decision requests default to `/v1/systemone`.
+For local [Ollama](https://ollama.com), the default URL is `http://localhost:11434`. Choose None if your server does not require credentials. The app loads decision-capable models from `GET /api/tags` (automatically detecting vision capabilities) and uses `GET /v1/models` for Jev and Bearer connections. Decision requests default to `/v1/systemone`.
 
 Install a decision-capable model on your Ollama server, such as:
 
 - `nimble`
 - `tev1`
-- `clef`
-- `clef-flash`
+- `clef` (vision-capable)
+- `clef-flash` (vision-capable)
 - `laya`
 
-![A decision request and its response in Clef Airy.](docs/run.jpg)
+![A decision request and its response in Clef Airy Decisions API Tester.](docs/run.jpg)
 
 ## Credentials and local data
 
-Settings and bookmarks stay in a local SQLite database. The desktop app encrypts saved API passwords and Bearer keys through Electron's secure storage, using macOS Keychain or Windows data protection. It saves the encrypted value in the database. If secure storage is unavailable, saving a new credential fails.
+Settings and bookmarks stay in a local SQLite database. Bookmarks do not store attached images. The desktop app encrypts saved API passwords and Bearer keys through Electron's secure storage, using macOS Keychain or Windows data protection. It saves the encrypted value in the database. If secure storage is unavailable, saving a new credential fails.
 
 The app sends credentials to your configured API to authenticate model lookups and requests. It sends request content there too. Use HTTPS for remote APIs.
 

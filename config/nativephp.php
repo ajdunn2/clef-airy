@@ -8,7 +8,7 @@ return [
      * It is used to determine if the app needs to be updated.
      * Increment this value every time you release a new version of your app.
      */
-    'version' => env('NATIVEPHP_APP_VERSION', '1.1.0'),
+    'version' => env('NATIVEPHP_APP_VERSION', '1.2.0'),
 
     /**
      * The ID of your application. This should be a unique identifier
@@ -205,8 +205,27 @@ return [
         'cp public/icon.png public/icon.icns public/icon.ico nativephp/electron/build/',
     ],
 
+    /**
+     * A Windows build clears this machine's unpacked PHP and leaves php.exe.
+     * The next native:build needs the Mac binary named php.
+     */
     'postbuild' => [
-        // 'rm -rf public/build',
+        <<<'SH'
+        if [ "$(uname -s)" != Darwin ]; then exit 0; fi
+        case "$(uname -m)" in
+          arm64|aarch64) arch=arm64 ;;
+          x86_64) arch=x64 ;;
+          *) exit 0 ;;
+        esac
+        ver=$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')
+        zip="vendor/nativephp/php-bin/bin/mac/${arch}/php-${ver}.zip"
+        dest="vendor/nativephp/desktop/resources/build/php"
+        [ -f "$zip" ] || exit 0
+        mkdir -p "$dest"
+        unzip -qo -j "$zip" -d "$dest"
+        chmod 755 "$dest/php"
+        rm -f "$dest/php.exe"
+        SH,
     ],
 
     /**
